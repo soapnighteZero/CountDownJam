@@ -129,6 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2503277}
   - component: {fileID: 2503278}
+  - component: {fileID: 2503279}
   m_Layer: 0
   m_Name: Segment_F
   m_TagString: Untagged
@@ -198,6 +199,20 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 0.3, y: 2}
   m_EdgeRadius: 0
+--- !u!114 &2503279
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2503276}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
+  visual: {fileID: 0}
+  isActive: 1
 --- !u!1 &16782370
 GameObject:
   m_ObjectHideFlags: 0
@@ -392,6 +407,7 @@ GameObject:
   m_Component:
   - component: {fileID: 214800123}
   - component: {fileID: 214800124}
+  - component: {fileID: 214800125}
   m_Layer: 0
   m_Name: Segment_D
   m_TagString: Untagged
@@ -461,6 +477,20 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 2, y: 0.3}
   m_EdgeRadius: 0
+--- !u!114 &214800125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 214800122}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
+  visual: {fileID: 0}
+  isActive: 1
 --- !u!1 &704136726
 GameObject:
   m_ObjectHideFlags: 0
@@ -470,6 +500,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 704136727}
+  - component: {fileID: 704136728}
   m_Layer: 0
   m_Name: SevenSegmentDisplay
   m_TagString: Untagged
@@ -499,6 +530,25 @@ Transform:
   - {fileID: 2131474505}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &704136728
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 704136726}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df40c4917ae1b8d43921578f81ab39a6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentDisplay
+  segmentA: {fileID: 1742972803}
+  segmentB: {fileID: 1637492929}
+  segmentC: {fileID: 1997340195}
+  segmentD: {fileID: 214800125}
+  segmentE: {fileID: 2122322467}
+  segmentF: {fileID: 2503279}
+  segmentG: {fileID: 2131474507}
 --- !u!1 &726596590
 GameObject:
   m_ObjectHideFlags: 0
@@ -922,6 +972,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1637492927}
   - component: {fileID: 1637492928}
+  - component: {fileID: 1637492929}
   m_Layer: 0
   m_Name: Segment_B
   m_TagString: Untagged
@@ -991,6 +1042,20 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 0.3, y: 2}
   m_EdgeRadius: 0
+--- !u!114 &1637492929
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1637492926}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
+  visual: {fileID: 0}
+  isActive: 1
 --- !u!1 &1742972800
 GameObject:
   m_ObjectHideFlags: 0
@@ -1001,6 +1066,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1742972801}
   - component: {fileID: 1742972802}
+  - component: {fileID: 1742972803}
   m_Layer: 0
   m_Name: Segment_A
   m_TagString: Untagged
@@ -1070,6 +1136,20 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 2, y: 0.3}
   m_EdgeRadius: 0
+--- !u!114 &1742972803
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1742972800}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
+  visual: {fileID: 0}
+  isActive: 1
 --- !u!1 &1795490284
 GameObject:
   m_ObjectHideFlags: 0
@@ -1172,6 +1252,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1997340193}
   - component: {fileID: 1997340194}
+  - component: {fileID: 1997340195}
   m_Layer: 0
   m_Name: Segment_C
   m_TagString: Untagged
@@ -1241,6 +1322,20 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 0.3, y: 2}
   m_EdgeRadius: 0
+--- !u!114 &1997340195
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1997340192}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
+  visual: {fileID: 0}
+  isActive: 1
 --- !u!1 &1997454015
 GameObject:
   m_ObjectHideFlags: 0
@@ -1343,6 +1438,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2122322465}
   - component: {fileID: 2122322466}
+  - component: {fileID: 2122322467}
   m_Layer: 0
   m_Name: Segment_E
   m_TagString: Untagged
@@ -1412,6 +1508,20 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 0.3, y: 2}
   m_EdgeRadius: 0
+--- !u!114 &2122322467
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2122322464}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
+  visual: {fileID: 0}
+  isActive: 1
 --- !u!1 &2131474504
 GameObject:
   m_ObjectHideFlags: 0
@@ -1422,6 +1532,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2131474505}
   - component: {fileID: 2131474506}
+  - component: {fileID: 2131474507}
   m_Layer: 0
   m_Name: Segment_G
   m_TagString: Untagged
@@ -1491,6 +1602,20 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 2, y: 0.3}
   m_EdgeRadius: 0
+--- !u!114 &2131474507
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2131474504}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
+  visual: {fileID: 0}
+  isActive: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
