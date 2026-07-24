@@ -198,7 +198,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.3, y: 2}
+  m_Size: {x: 0.5, y: 2.2}
   m_EdgeRadius: 0
 --- !u!114 &2503279
 MonoBehaviour:
@@ -477,7 +477,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 2, y: 0.3}
+  m_Size: {x: 2.2, y: 0.5}
   m_EdgeRadius: 0
 --- !u!114 &214800125
 MonoBehaviour:
@@ -842,6 +842,57 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentInteractionController
   worldCamera: {fileID: 1256110644}
   storedSegments: 0
+--- !u!1 &722873493
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 722873495}
+  - component: {fileID: 722873494}
+  m_Layer: 0
+  m_Name: GameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &722873494
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 722873493}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90e932f42215cc44b83572a6679376fe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BombGameController
+  display: {fileID: 704136728}
+  interactionController: {fileID: 704136729}
+  startingCountdownDigit: 9
+  passwordDigits: 000000000900000007000000
+  currentCountdownDigit: 0
+  currentPasswordIndex: 9
+  totalEnergy: 7
+--- !u!4 &722873495
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 722873493}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &726596590
 GameObject:
   m_ObjectHideFlags: 0
@@ -1518,7 +1569,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.3, y: 2}
+  m_Size: {x: 0.5, y: 2.2}
   m_EdgeRadius: 0
 --- !u!114 &1637492929
 MonoBehaviour:
@@ -1613,7 +1664,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 2, y: 0.3}
+  m_Size: {x: 2.2, y: 0.5}
   m_EdgeRadius: 0
 --- !u!114 &1742972803
 MonoBehaviour:
@@ -1984,7 +2035,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.3, y: 2}
+  m_Size: {x: 0.5, y: 2.2}
   m_EdgeRadius: 0
 --- !u!114 &1997340195
 MonoBehaviour:
@@ -2171,7 +2222,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.3, y: 2}
+  m_Size: {x: 0.5, y: 2.2}
   m_EdgeRadius: 0
 --- !u!114 &2122322467
 MonoBehaviour:
@@ -2266,7 +2317,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 2, y: 0.3}
+  m_Size: {x: 2.2, y: 0.5}
   m_EdgeRadius: 0
 --- !u!114 &2131474507
 MonoBehaviour:
@@ -2287,4 +2338,5 @@ SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1256110645}
+  - {fileID: 722873495}
   - {fileID: 704136727}

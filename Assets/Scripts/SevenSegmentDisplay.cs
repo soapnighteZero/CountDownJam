@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
+
 public class SevenSegmentDisplay : MonoBehaviour
 {
     [Header("Segments: A, B, C, D, E, F, G")]
@@ -13,8 +13,7 @@ public class SevenSegmentDisplay : MonoBehaviour
 
     private SevenSegmentPiece[] segments;
 
-    // Segment order:
-    // A, B, C, D, E, F, G
+    // Segment order: A, B, C, D, E, F, G
     private readonly bool[][] digitPatterns =
     {
         // 0
@@ -62,82 +61,6 @@ public class SevenSegmentDisplay : MonoBehaviour
         };
     }
 
-    private void Start()
-    {
-        SetDigit(8);
-    }
-
-    private void Update()
-    {
-        Keyboard keyboard = Keyboard.current;
-
-        if (keyboard == null)
-        {
-            return;
-        }
-
-        // 键盘顶部数字键和小键盘都支持
-        if (keyboard.digit0Key.wasPressedThisFrame ||
-            keyboard.numpad0Key.wasPressedThisFrame)
-        {
-            SetDigit(0);
-        }
-
-        if (keyboard.digit1Key.wasPressedThisFrame ||
-            keyboard.numpad1Key.wasPressedThisFrame)
-        {
-            SetDigit(1);
-        }
-
-        if (keyboard.digit2Key.wasPressedThisFrame ||
-            keyboard.numpad2Key.wasPressedThisFrame)
-        {
-            SetDigit(2);
-        }
-
-        if (keyboard.digit3Key.wasPressedThisFrame ||
-            keyboard.numpad3Key.wasPressedThisFrame)
-        {
-            SetDigit(3);
-        }
-
-        if (keyboard.digit4Key.wasPressedThisFrame ||
-            keyboard.numpad4Key.wasPressedThisFrame)
-        {
-            SetDigit(4);
-        }
-
-        if (keyboard.digit5Key.wasPressedThisFrame ||
-            keyboard.numpad5Key.wasPressedThisFrame)
-        {
-            SetDigit(5);
-        }
-
-        if (keyboard.digit6Key.wasPressedThisFrame ||
-            keyboard.numpad6Key.wasPressedThisFrame)
-        {
-            SetDigit(6);
-        }
-
-        if (keyboard.digit7Key.wasPressedThisFrame ||
-            keyboard.numpad7Key.wasPressedThisFrame)
-        {
-            SetDigit(7);
-        }
-
-        if (keyboard.digit8Key.wasPressedThisFrame ||
-            keyboard.numpad8Key.wasPressedThisFrame)
-        {
-            SetDigit(8);
-        }
-
-        if (keyboard.digit9Key.wasPressedThisFrame ||
-            keyboard.numpad9Key.wasPressedThisFrame)
-        {
-            SetDigit(9);
-        }
-    }
-
     public void SetDigit(int digit)
     {
         if (digit < 0 || digit > 9)
@@ -162,5 +85,33 @@ public class SevenSegmentDisplay : MonoBehaviour
 
             segments[i].SetActiveState(pattern[i]);
         }
+    }
+
+    public bool TryGetCurrentDigit(out int digit)
+    {
+        for (int candidate = 0; candidate <= 9; candidate++)
+        {
+            bool[] pattern = digitPatterns[candidate];
+            bool matches = true;
+
+            for (int i = 0; i < segments.Length; i++)
+            {
+                if (segments[i] == null ||
+                    segments[i].IsActive != pattern[i])
+                {
+                    matches = false;
+                    break;
+                }
+            }
+
+            if (matches)
+            {
+                digit = candidate;
+                return true;
+            }
+        }
+
+        digit = -1;
+        return false;
     }
 }
