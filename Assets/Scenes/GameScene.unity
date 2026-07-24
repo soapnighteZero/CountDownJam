@@ -211,7 +211,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
-  visual: {fileID: 0}
+  visual: {fileID: 1795490284}
   isActive: 1
 --- !u!1 &16782370
 GameObject:
@@ -489,7 +489,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
-  visual: {fileID: 0}
+  visual: {fileID: 1036613245}
   isActive: 1
 --- !u!1 &704136726
 GameObject:
@@ -1054,7 +1054,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
-  visual: {fileID: 0}
+  visual: {fileID: 16782370}
   isActive: 1
 --- !u!1 &1742972800
 GameObject:
@@ -1148,7 +1148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
-  visual: {fileID: 0}
+  visual: {fileID: 1997454015}
   isActive: 1
 --- !u!1 &1795490284
 GameObject:
@@ -1334,7 +1334,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
-  visual: {fileID: 0}
+  visual: {fileID: 157547582}
   isActive: 1
 --- !u!1 &1997454015
 GameObject:
@@ -1520,7 +1520,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
-  visual: {fileID: 0}
+  visual: {fileID: 1558919181}
   isActive: 1
 --- !u!1 &2131474504
 GameObject:
@@ -1614,7 +1614,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 069e954157386454e97b0a913d78b13e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SevenSegmentPiece
-  visual: {fileID: 0}
+  visual: {fileID: 726596590}
   isActive: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
