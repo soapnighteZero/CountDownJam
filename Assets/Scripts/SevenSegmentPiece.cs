@@ -2,11 +2,8 @@ using UnityEngine;
 
 public class SevenSegmentPiece : MonoBehaviour
 {
-    [SerializeField]
-    private GameObject visual;
-
-    [SerializeField]
-    private bool isActive = true;
+    [SerializeField] private GameObject visual;
+    [SerializeField] private bool isActive = true;
 
     public bool IsActive => isActive;
 
@@ -21,9 +18,26 @@ public class SevenSegmentPiece : MonoBehaviour
         ApplyVisualState();
     }
 
-    public void Toggle()
+    public bool TryRemove()
     {
-        SetActiveState(!isActive);
+        if (!isActive)
+        {
+            return false;
+        }
+
+        SetActiveState(false);
+        return true;
+    }
+
+    public bool TryInstall()
+    {
+        if (isActive)
+        {
+            return false;
+        }
+
+        SetActiveState(true);
+        return true;
     }
 
     private void ApplyVisualState()
