@@ -25,8 +25,35 @@ public class BombGameController : MonoBehaviour
     [SerializeField] private int totalEnergy;
     [SerializeField] private float countdownTimer;
     [SerializeField] private bool isEditing;
+    [SerializeField] private bool gameResolved;
+    [SerializeField] private bool playerWon;
 
-    private bool gameResolved;
+    private string statusMessage;
+
+    public int CurrentCountdownDigit => currentCountdownDigit;
+    public int LockedCountdownDigit => lockedCountdownDigit;
+    public int CurrentPasswordIndex => currentPasswordIndex;
+    public int TotalEnergy => totalEnergy;
+    public float CountdownTimer => countdownTimer;
+    public float SecondsPerDigit => secondsPerDigit;
+    public bool IsEditing => isEditing;
+    public bool GameResolved => gameResolved;
+    public bool PlayerWon => playerWon;
+    public string StatusMessage => statusMessage;
+    public int PasswordLength =>
+        passwordDigits == null ? 0 : passwordDigits.Length;
+    public int CurrentRequiredDigit =>
+        currentPasswordIndex >= 0 &&
+        currentPasswordIndex < PasswordLength
+            ? passwordDigits[currentPasswordIndex]
+            : -1;
+
+    public int GetPasswordDigit(int index)
+    {
+        return index >= 0 && index < PasswordLength
+            ? passwordDigits[index]
+            : -1;
+    }
 
     private void Awake()
     {
@@ -52,6 +79,8 @@ public class BombGameController : MonoBehaviour
         if (!ValidateLevel())
         {
             gameResolved = true;
+            playerWon = false;
+            statusMessage = "LEVEL CONFIGURATION ERROR";
             return;
         }
 
@@ -62,6 +91,7 @@ public class BombGameController : MonoBehaviour
         countdownTimer = secondsPerDigit;
         isEditing = false;
         gameResolved = false;
+        playerWon = false;
 
         display.SetDigit(currentCountdownDigit);
 
@@ -187,6 +217,8 @@ public class BombGameController : MonoBehaviour
     {
         isEditing = true;
         lockedCountdownDigit = currentCountdownDigit;
+        statusMessage =
+            $"EDIT TO {CurrentRequiredDigit}  |  SPACE: SUBMIT";
 
         interactionController.enabled = true;
 
@@ -283,8 +315,10 @@ public class BombGameController : MonoBehaviour
     private void HandlePasswordCompleted()
     {
         gameResolved = true;
+        playerWon = true;
         isEditing = false;
         lockedCountdownDigit = -1;
+        statusMessage = "BOMB DEFUSED";
 
         DisableInteraction();
 
@@ -298,7 +332,9 @@ public class BombGameController : MonoBehaviour
     private void HandleExplosion(string reason)
     {
         gameResolved = true;
+        playerWon = false;
         isEditing = false;
+        statusMessage = "BOOM - GAME OVER";
 
         DisableInteraction();
 
@@ -312,6 +348,9 @@ public class BombGameController : MonoBehaviour
     {
         int requiredDigit =
             passwordDigits[currentPasswordIndex];
+
+        statusMessage =
+            $"SPACE: LOCK  |  NEXT CODE: {requiredDigit}";
 
         Debug.Log(
             $"Countdown digit: {currentCountdownDigit}. " +
