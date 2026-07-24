@@ -12,13 +12,19 @@ public class BombGameController : MonoBehaviour
     [SerializeField, Range(0, 9)]
     private int startingCountdownDigit = 9;
 
+    [SerializeField, Min(0.1f)]
+    private float secondsPerDigit = 3f;
+
     [SerializeField]
     private int[] passwordDigits = { 0, 9, 7 };
 
     [Header("Runtime Debug")]
     [SerializeField] private int currentCountdownDigit;
+    [SerializeField] private int lockedCountdownDigit = -1;
     [SerializeField] private int currentPasswordIndex;
     [SerializeField] private int totalEnergy;
+    [SerializeField] private float countdownTimer;
+    [SerializeField] private bool isEditing;
 
     private bool gameResolved;
 
@@ -38,21 +44,28 @@ public class BombGameController : MonoBehaviour
 
     private void Start()
     {
+        if (interactionController != null)
+        {
+            interactionController.enabled = false;
+        }
+
         if (!ValidateLevel())
         {
             gameResolved = true;
-            DisableInteraction();
             return;
         }
 
         currentCountdownDigit = startingCountdownDigit;
+        lockedCountdownDigit = -1;
         currentPasswordIndex = 0;
         totalEnergy = 0;
+        countdownTimer = secondsPerDigit;
+        isEditing = false;
         gameResolved = false;
 
         display.SetDigit(currentCountdownDigit);
 
-        ReportCurrentObjective();
+        ReportCountdownState();
     }
 
     private void Update()
@@ -64,15 +77,25 @@ public class BombGameController : MonoBehaviour
 
         Keyboard keyboard = Keyboard.current;
 
-        if (keyboard == null)
+        if (isEditing)
         {
+            if (keyboard != null &&
+                keyboard.spaceKey.wasPressedThisFrame)
+            {
+                SubmitCurrentShape();
+            }
+
             return;
         }
 
-        if (keyboard.spaceKey.wasPressedThisFrame)
+        if (keyboard != null &&
+            keyboard.spaceKey.wasPressedThisFrame)
         {
-            SubmitCurrentShape();
+            BeginEditing();
+            return;
         }
+
+        UpdateCountdown();
     }
 
     private bool ValidateLevel()
@@ -107,6 +130,17 @@ public class BombGameController : MonoBehaviour
             return false;
         }
 
+        if (passwordDigits.Length > startingCountdownDigit + 1)
+        {
+            Debug.LogError(
+                "The password contains more digits than the " +
+                "countdown can support.",
+                this
+            );
+
+            return false;
+        }
+
         for (int i = 0; i < passwordDigits.Length; i++)
         {
             if (passwordDigits[i] < 0 || passwordDigits[i] > 9)
@@ -124,12 +158,54 @@ public class BombGameController : MonoBehaviour
         return true;
     }
 
+    private void UpdateCountdown()
+    {
+        countdownTimer -= Time.deltaTime;
+
+        while (countdownTimer <= 0f && !gameResolved)
+        {
+            if (currentCountdownDigit <= 0)
+            {
+                HandleExplosion(
+                    "The countdown reached zero before " +
+                    "the password was completed."
+                );
+
+                return;
+            }
+
+            currentCountdownDigit--;
+            countdownTimer += secondsPerDigit;
+
+            display.SetDigit(currentCountdownDigit);
+
+            ReportCountdownState();
+        }
+    }
+
+    private void BeginEditing()
+    {
+        isEditing = true;
+        lockedCountdownDigit = currentCountdownDigit;
+
+        interactionController.enabled = true;
+
+        Debug.Log(
+            $"Countdown locked at {lockedCountdownDigit}. " +
+            $"Edit the display into password digit " +
+            $"{passwordDigits[currentPasswordIndex]}, " +
+            $"then press Space to submit.",
+            this
+        );
+    }
+
     private void SubmitCurrentShape()
     {
         bool isValidDigit =
             display.TryGetCurrentDigit(out int submittedDigit);
 
-        int requiredDigit = passwordDigits[currentPasswordIndex];
+        int requiredDigit =
+            passwordDigits[currentPasswordIndex];
 
         if (!isValidDigit || submittedDigit != requiredDigit)
         {
@@ -147,10 +223,13 @@ public class BombGameController : MonoBehaviour
 
     private void HandleCorrectSubmission(int submittedDigit)
     {
-        int gainedEnergy = currentCountdownDigit;
+        int gainedEnergy = lockedCountdownDigit;
 
         totalEnergy += gainedEnergy;
         currentPasswordIndex++;
+
+        interactionController.enabled = false;
+        isEditing = false;
 
         Debug.Log(
             $"Correct submission: {submittedDigit}. " +
@@ -165,20 +244,24 @@ public class BombGameController : MonoBehaviour
             return;
         }
 
-        currentCountdownDigit--;
+        currentCountdownDigit = lockedCountdownDigit - 1;
+        lockedCountdownDigit = -1;
 
         if (currentCountdownDigit < 0)
         {
             HandleExplosion(
-                "Countdown ended before the password was completed."
+                "No countdown digits remain before " +
+                "the password is complete."
             );
 
             return;
         }
 
+        countdownTimer = secondsPerDigit;
+
         display.SetDigit(currentCountdownDigit);
 
-        ReportCurrentObjective();
+        ReportCountdownState();
     }
 
     private void HandleWrongSubmission(
@@ -200,6 +283,9 @@ public class BombGameController : MonoBehaviour
     private void HandlePasswordCompleted()
     {
         gameResolved = true;
+        isEditing = false;
+        lockedCountdownDigit = -1;
+
         DisableInteraction();
 
         Debug.Log(
@@ -212,6 +298,8 @@ public class BombGameController : MonoBehaviour
     private void HandleExplosion(string reason)
     {
         gameResolved = true;
+        isEditing = false;
+
         DisableInteraction();
 
         Debug.LogError(
@@ -220,16 +308,18 @@ public class BombGameController : MonoBehaviour
         );
     }
 
-    private void ReportCurrentObjective()
+    private void ReportCountdownState()
     {
-        int requiredDigit = passwordDigits[currentPasswordIndex];
+        int requiredDigit =
+            passwordDigits[currentPasswordIndex];
 
         Debug.Log(
             $"Countdown digit: {currentCountdownDigit}. " +
             $"Required password digit: {requiredDigit}. " +
             $"Password progress: {currentPasswordIndex + 1}/" +
             $"{passwordDigits.Length}. " +
-            $"Current energy: {totalEnergy}.",
+            $"Current energy: {totalEnergy}. " +
+            $"Press Space to lock this countdown digit.",
             this
         );
     }
