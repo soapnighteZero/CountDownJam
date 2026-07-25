@@ -1,3 +1,4 @@
+using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -11,8 +12,10 @@ public class LayeredSegmentStackView :
 
     [SerializeField] private LayeredSegmentPosition position;
     [SerializeField] private Image segmentImage;
-    [SerializeField] private TMP_Text depthText;
+    [SerializeField] private Image[] depthIndicators =
+        Array.Empty<Image>();
     [SerializeField] private TMP_Text positionLabelText;
+    [SerializeField] private bool showDebugLabels = true;
 
     private LayeredSegmentStackDefinition definition;
     private LayeredDigitPuzzleController owner;
@@ -88,12 +91,29 @@ public class LayeredSegmentStackView :
             isValid = false;
         }
 
-        if (depthText == null)
+        if (depthIndicators == null || depthIndicators.Length != 2)
         {
             Debug.LogError(
-                $"LayeredSegmentStackView {position} is missing depthText.",
+                $"LayeredSegmentStackView {position} requires exactly " +
+                "two depth indicators.",
                 this);
             isValid = false;
+        }
+        else
+        {
+            for (int i = 0; i < depthIndicators.Length; i++)
+            {
+                if (depthIndicators[i] != null)
+                {
+                    continue;
+                }
+
+                Debug.LogError(
+                    $"LayeredSegmentStackView {position} is missing " +
+                    $"depth indicator {i}.",
+                    this);
+                isValid = false;
+            }
         }
 
         if (positionLabelText == null)
@@ -143,15 +163,27 @@ public class LayeredSegmentStackView :
             segmentImage.raycastTarget = true;
         }
 
-        if (depthText != null)
+        if (depthIndicators != null)
         {
-            depthText.text =
-                RemainingDepth > 0 ? RemainingDepth.ToString() : string.Empty;
+            for (int i = 0; i < depthIndicators.Length; i++)
+            {
+                Image indicator = depthIndicators[i];
+
+                if (indicator == null)
+                {
+                    continue;
+                }
+
+                indicator.raycastTarget = false;
+                indicator.gameObject.SetActive(i < RemainingDepth);
+            }
         }
 
         if (positionLabelText != null)
         {
             positionLabelText.text = position.ToString();
+            positionLabelText.raycastTarget = false;
+            positionLabelText.gameObject.SetActive(showDebugLabels);
         }
     }
 

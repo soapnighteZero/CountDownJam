@@ -8,9 +8,9 @@ public class LayeredDigitPuzzleController : MonoBehaviour
     private const string ConfigurationErrorText =
         "LAYERED PUZZLE CONFIGURATION ERROR";
     private const string InstructionText =
-        "REMOVE EXACTLY FOUR LAYERS.\n" +
-        "WHEN HITS REACH ZERO, THE REMAINING ACTIVE SEGMENTS\n" +
-        "MUST SHARE ONE COLOR AND FORM A VALID DIGIT.";
+        "COLOR = CURRENT SIGNAL\n" +
+        "DOTS = LAYERS BELOW\n" +
+        "REMOVE EXACTLY 4 LAYERS";
 
     [SerializeField] private LayeredDigitPuzzleConfig puzzleConfig;
     [SerializeField] private CodebreakerGameController gameController;
