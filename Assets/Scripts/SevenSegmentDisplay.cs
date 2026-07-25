@@ -47,7 +47,35 @@ public class SevenSegmentDisplay : MonoBehaviour
         new[] { true,  true,  true,  true,  false, true,  true  }
     };
 
+    public int ActiveSegmentCount
+    {
+        get
+        {
+            int count = 0;
+
+            if (segments == null)
+            {
+                InitializeSegments();
+            }
+
+            for (int i = 0; i < segments.Length; i++)
+            {
+                if (segments[i] != null && segments[i].IsActive)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+    }
+
     private void Awake()
+    {
+        InitializeSegments();
+    }
+
+    private void InitializeSegments()
     {
         segments = new[]
         {
@@ -59,6 +87,27 @@ public class SevenSegmentDisplay : MonoBehaviour
             segmentF,
             segmentG
         };
+    }
+
+    public int GetRequiredSegmentCount(int digit)
+    {
+        if (digit < 0 || digit >= digitPatterns.Length)
+        {
+            return -1;
+        }
+
+        int count = 0;
+        bool[] pattern = digitPatterns[digit];
+
+        for (int i = 0; i < pattern.Length; i++)
+        {
+            if (pattern[i])
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     public void SetDigit(int digit)
