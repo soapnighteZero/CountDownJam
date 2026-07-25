@@ -7,7 +7,7 @@ public class CodebreakerGameController : MonoBehaviour
     private const string DiscoveryStatus =
         "RECOVER THE THREE-DIGIT ACCESS CODE";
     private const string EquationStatus =
-        "EQUATION MODULE READY FOR A LATER ROUND";
+        "ENTER THE RECOVERED CODE THROUGH A + B";
     private const string DefusedResult = "BOMB DEFUSED";
     private const string ExplodedResult = "BOOM\nGAME OVER";
 
