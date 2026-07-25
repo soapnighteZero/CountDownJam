@@ -218,9 +218,13 @@ public static class CodebreakerRound4SceneBuilder
             context.MainCameraObject,
             "Main Camera",
             errors);
-        context.GameController = RequireComponent<CodebreakerGameController>(
+        context.GameController =
+            RequireUniqueComponent<CodebreakerGameController>(
+                targetScene,
+                errors);
+        ValidateGameControllerHierarchy(
             context.GameManager,
-            "CodebreakerGameManager",
+            context.GameController,
             errors);
         context.CodeDisplay = RequireUniqueComponent<CodeSequenceDisplay>(
             targetScene,
@@ -274,6 +278,28 @@ public static class CodebreakerRound4SceneBuilder
         }
 
         return context;
+    }
+
+    private static void ValidateGameControllerHierarchy(
+        GameObject gameManager,
+        CodebreakerGameController gameController,
+        List<string> errors)
+    {
+        if (gameManager == null || gameController == null)
+        {
+            return;
+        }
+
+        Transform controllerTransform = gameController.transform;
+
+        if (gameController.gameObject != gameManager &&
+            !controllerTransform.IsChildOf(gameManager.transform))
+        {
+            errors.Add(
+                "CodebreakerGameController must be on " +
+                "CodebreakerGameManager or one of its descendants; found at " +
+                $"{GetHierarchyPath(gameController.gameObject)}.");
+        }
     }
 
     private static void ValidateTargetBaseline(
