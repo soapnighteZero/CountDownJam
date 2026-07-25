@@ -62,14 +62,14 @@ public class EquationBombHUD : MonoBehaviour
         if (inventoryText != null)
         {
             inventoryText.text =
-                $"SPARE SEGMENTS  {inventory.StoredSegments}";
+                $"SPARE  {inventory.StoredSegments}";
         }
 
         if (instructionText != null)
         {
             instructionText.text =
                 $"{gameController.StatusMessage}\n" +
-                "LEFT: REMOVE  |  RIGHT: INSTALL  |  SPACE: DEFUSE";
+                "DRAG SEGMENTS  |  SPACE: DEFUSE";
         }
 
         if (resultText != null)

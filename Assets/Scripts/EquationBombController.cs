@@ -14,8 +14,8 @@ public class EquationBombController : MonoBehaviour
     [SerializeField, Range(0, 9)] private int startingDigitA = 8;
     [SerializeField, Range(0, 9)] private int startingDigitB = 5;
     [SerializeField, Min(0)] private int startingSharedSegments;
-    [SerializeField, Min(0.1f)] private float secondsPerPulse = 5f;
-    [SerializeField, Min(0.1f)] private float masterFuseDuration = 30f;
+    [SerializeField, Min(0.1f)] private float secondsPerPulse = 10f;
+    [SerializeField, Min(0.1f)] private float masterFuseDuration = 60f;
 
     [Header("Runtime Debug")]
     [SerializeField] private float pulseTimer;

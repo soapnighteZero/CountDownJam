@@ -6,6 +6,7 @@ public class SevenSegmentPiece : MonoBehaviour
     [SerializeField] private bool isActive = true;
 
     public bool IsActive => isActive;
+    public GameObject VisualObject => visual;
 
     private void Awake()
     {
