@@ -51,6 +51,14 @@ public class LayeredSegmentStackDefinition
             return false;
         }
 
+        if (states.Length > 4)
+        {
+            errorMessage =
+                $"Stack {position} has {states.Length} states; the canonical " +
+                "progression supports at most four.";
+            return false;
+        }
+
         for (int i = 0; i < states.Length; i++)
         {
             if (!Enum.IsDefined(typeof(LayeredSegmentColor), states[i]))
@@ -60,17 +68,44 @@ public class LayeredSegmentStackDefinition
                     $"{states[i]} at state {i}.";
                 return false;
             }
+        }
 
-            if (i > 0 && states[i] == states[i - 1])
-            {
-                errorMessage =
-                    $"Layered segment stack {position} repeats {states[i]} " +
-                    $"in adjacent states {i - 1} and {i}.";
-                return false;
-            }
+        if (!LayeredSegmentColorProgression.IsCanonicalSequence(
+                states,
+                out string progressionError))
+        {
+            errorMessage = ReplaceSequenceSubject(progressionError);
+            return false;
+        }
+
+        int canonicalMaximumHits =
+            LayeredSegmentColorProgression.GetRemainingDepth(states[0]);
+
+        if (MaximumHits != canonicalMaximumHits)
+        {
+            errorMessage =
+                $"Stack {position} has MaximumHits {MaximumHits}, but " +
+                $"{states[0]} requires {canonicalMaximumHits}.";
+            return false;
         }
 
         errorMessage = string.Empty;
         return true;
+    }
+
+    private string ReplaceSequenceSubject(string progressionError)
+    {
+        const string sequenceSubject = "Sequence";
+        string stackSubject = $"Stack {position}";
+
+        if (progressionError.StartsWith(
+                sequenceSubject,
+                StringComparison.Ordinal))
+        {
+            return stackSubject +
+                progressionError.Substring(sequenceSubject.Length);
+        }
+
+        return $"{stackSubject}: {progressionError}";
     }
 }

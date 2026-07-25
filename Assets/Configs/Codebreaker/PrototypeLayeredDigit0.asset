@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0c29f5902f4a8ed4c8fe2319b3a47d54, type: 3}
-  m_Name: PrototypeLayeredDigit5
+  m_Name: PrototypeLayeredDigit0
   m_EditorClassIdentifier: Assembly-CSharp::LayeredDigitPuzzleConfig
-  puzzleId: prototype-green-5
-  targetCodeIndex: 0
+  puzzleId: prototype-green-0
+  targetCodeIndex: 2
   hitBudget: 4
-  expectedDigit: 5
+  expectedDigit: 0
   expectedColor: 1
   failureTimePenaltySeconds: 5
   failureResetDelaySeconds: 1
@@ -24,14 +24,14 @@ MonoBehaviour:
   - position: 0
     states: 0100000000000000
   - position: 1
-    states: 00000000
+    states: 0100000000000000
   - position: 2
     states: 0100000000000000
   - position: 3
-    states: 0100000000000000
-  - position: 4
-    states: 0100000000000000
-  - position: 5
     states: 020000000100000000000000
-  - position: 6
+  - position: 4
+    states: 020000000100000000000000
+  - position: 5
     states: 03000000020000000100000000000000
+  - position: 6
+    states: 00000000

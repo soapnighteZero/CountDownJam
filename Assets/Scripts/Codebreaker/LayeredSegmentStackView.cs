@@ -9,6 +9,8 @@ public class LayeredSegmentStackView :
     IPointerClickHandler
 {
     private const float ClickCooldownSeconds = 0.08f;
+    private static readonly Color DepthIndicatorColor =
+        new Color32(172, 190, 208, 255);
 
     [SerializeField] private LayeredSegmentPosition position;
     [SerializeField] private Image segmentImage;
@@ -20,6 +22,8 @@ public class LayeredSegmentStackView :
     private LayeredSegmentStackDefinition definition;
     private LayeredDigitPuzzleController owner;
     private float nextAllowedClickTime;
+    private bool runtimeConfigurationValid;
+    private bool runtimeConfigurationErrorLogged;
 
     public LayeredSegmentPosition Position => position;
     public int CurrentHitDepth { get; private set; }
@@ -28,7 +32,9 @@ public class LayeredSegmentStackView :
         Mathf.Max(0, MaximumHits - CurrentHitDepth);
     public LayeredSegmentColor CurrentColor { get; private set; }
     public bool CanAdvance =>
-        definition != null && CurrentHitDepth < MaximumHits;
+        runtimeConfigurationValid &&
+        definition != null &&
+        CurrentHitDepth < MaximumHits;
 
     public void Initialize(
         LayeredSegmentStackDefinition stackDefinition,
@@ -36,23 +42,29 @@ public class LayeredSegmentStackView :
     {
         definition = stackDefinition;
         owner = puzzleOwner;
+        runtimeConfigurationValid = true;
+        runtimeConfigurationErrorLogged = false;
+        enabled = true;
 
         if (definition == null)
         {
-            Debug.LogError(
+            DisableForConfigurationError(
                 $"LayeredSegmentStackView {position} received a null " +
-                "definition.",
-                this);
+                "definition.");
             return;
         }
 
         if (definition.Position != position)
         {
-            Debug.LogError(
+            DisableForConfigurationError(
                 $"LayeredSegmentStackView {position} received the " +
-                $"{definition.Position} definition.",
-                this);
-            definition = null;
+                $"{definition.Position} definition.");
+            return;
+        }
+
+        if (!definition.ValidateConfiguration(out string errorMessage))
+        {
+            DisableForConfigurationError(errorMessage);
             return;
         }
 
@@ -91,11 +103,11 @@ public class LayeredSegmentStackView :
             isValid = false;
         }
 
-        if (depthIndicators == null || depthIndicators.Length != 2)
+        if (depthIndicators == null || depthIndicators.Length != 3)
         {
             Debug.LogError(
                 $"LayeredSegmentStackView {position} requires exactly " +
-                "two depth indicators.",
+                "three depth indicators.",
                 this);
             isValid = false;
         }
@@ -103,17 +115,29 @@ public class LayeredSegmentStackView :
         {
             for (int i = 0; i < depthIndicators.Length; i++)
             {
-                if (depthIndicators[i] != null)
+                if (depthIndicators[i] == null)
                 {
+                    Debug.LogError(
+                        $"LayeredSegmentStackView {position} is missing " +
+                        $"depth indicator {i}.",
+                        this);
+                    isValid = false;
                     continue;
                 }
 
-                Debug.LogError(
-                    $"LayeredSegmentStackView {position} is missing " +
-                    $"depth indicator {i}.",
-                    this);
-                isValid = false;
+                depthIndicators[i].raycastTarget = false;
+                depthIndicators[i].color = DepthIndicatorColor;
             }
+        }
+
+        if (positionLabelText != null)
+        {
+            positionLabelText.raycastTarget = false;
+        }
+
+        if (segmentImage != null)
+        {
+            segmentImage.raycastTarget = true;
         }
 
         if (positionLabelText == null)
@@ -133,6 +157,7 @@ public class LayeredSegmentStackView :
         if (eventData == null ||
             eventData.button != PointerEventData.InputButton.Left ||
             owner == null ||
+            !runtimeConfigurationValid ||
             Time.unscaledTime < nextAllowedClickTime)
         {
             return;
@@ -147,14 +172,46 @@ public class LayeredSegmentStackView :
 
     private void RefreshVisuals()
     {
+        if (!runtimeConfigurationValid)
+        {
+            ApplyDisabledVisualState();
+            return;
+        }
+
         if (definition == null)
         {
-            CurrentColor = LayeredSegmentColor.Gray;
+            DisableForConfigurationError(
+                $"LayeredSegmentStackView {position} has no active " +
+                "stack definition.");
+            return;
         }
-        else
+
+        CurrentColor =
+            definition.GetStateAfterHits(CurrentHitDepth);
+
+        int canonicalRemainingDepth;
+
+        try
         {
-            CurrentColor =
-                definition.GetStateAfterHits(CurrentHitDepth);
+            canonicalRemainingDepth =
+                LayeredSegmentColorProgression.GetRemainingDepth(
+                    CurrentColor);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            DisableForConfigurationError(
+                $"Stack {position} reached unsupported color " +
+                $"{CurrentColor} at hit depth {CurrentHitDepth}.");
+            return;
+        }
+
+        if (RemainingDepth != canonicalRemainingDepth)
+        {
+            DisableForConfigurationError(
+                $"Stack {position} has remaining depth {RemainingDepth} " +
+                $"at {CurrentColor}, but the canonical progression " +
+                $"requires {canonicalRemainingDepth}.");
+            return;
         }
 
         if (segmentImage != null)
@@ -174,8 +231,9 @@ public class LayeredSegmentStackView :
                     continue;
                 }
 
+                indicator.color = DepthIndicatorColor;
                 indicator.raycastTarget = false;
-                indicator.gameObject.SetActive(i < RemainingDepth);
+                indicator.gameObject.SetActive(RemainingDepth >= i + 1);
             }
         }
 
@@ -184,6 +242,53 @@ public class LayeredSegmentStackView :
             positionLabelText.text = position.ToString();
             positionLabelText.raycastTarget = false;
             positionLabelText.gameObject.SetActive(showDebugLabels);
+        }
+    }
+
+    private void DisableForConfigurationError(string errorMessage)
+    {
+        runtimeConfigurationValid = false;
+        enabled = false;
+
+        if (!runtimeConfigurationErrorLogged)
+        {
+            Debug.LogError(errorMessage, this);
+            runtimeConfigurationErrorLogged = true;
+        }
+
+        ApplyDisabledVisualState();
+    }
+
+    private void ApplyDisabledVisualState()
+    {
+        CurrentColor = LayeredSegmentColor.Gray;
+
+        if (segmentImage != null)
+        {
+            segmentImage.color = GetDisplayColor(CurrentColor);
+            segmentImage.raycastTarget = false;
+        }
+
+        if (depthIndicators != null)
+        {
+            for (int i = 0; i < depthIndicators.Length; i++)
+            {
+                Image indicator = depthIndicators[i];
+
+                if (indicator == null)
+                {
+                    continue;
+                }
+
+                indicator.color = DepthIndicatorColor;
+                indicator.raycastTarget = false;
+                indicator.gameObject.SetActive(false);
+            }
+        }
+
+        if (positionLabelText != null)
+        {
+            positionLabelText.raycastTarget = false;
         }
     }
 

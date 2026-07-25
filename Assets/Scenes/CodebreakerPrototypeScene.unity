@@ -388,6 +388,7 @@ MonoBehaviour:
   depthIndicators:
   - {fileID: 1576358046}
   - {fileID: 814441545}
+  - {fileID: 2000001003}
   positionLabelText: {fileID: 83090189}
   showDebugLabels: 1
 --- !u!114 &99623589
@@ -458,6 +459,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 2000002002}
   - {fileID: 1756608587}
   - {fileID: 1063890466}
   - {fileID: 998796993}
@@ -482,7 +484,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f29e9826b1c9e6f44af7ac575ede6b46, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LayeredDigitPuzzleController
-  puzzleConfig: {fileID: 11400000, guid: b950b8562ada1474aa173a500717cb15, type: 2}
+  puzzleConfigs:
+  - {fileID: 11400000, guid: b950b8562ada1474aa173a500717cb15, type: 2}
+  - {fileID: 11400000, guid: 62d3ed6e30234ed2ae42a8a93df65d31, type: 2}
+  - {fileID: 11400000, guid: c8fc59344768497889c57bb5bb9a8076, type: 2}
   gameController: {fileID: 973911325}
   segmentViews:
   - {fileID: 99623588}
@@ -492,10 +497,12 @@ MonoBehaviour:
   - {fileID: 1779637616}
   - {fileID: 674187558}
   - {fileID: 1835519441}
+  puzzleProgressText: {fileID: 2000002003}
   hitsLeftText: {fileID: 1063890467}
   puzzleInstructionText: {fileID: 998796994}
   puzzleFeedbackText: {fileID: 557433457}
   interactionBlocker: {fileID: 0}
+  successAdvanceDelaySeconds: 0.75
 --- !u!222 &125187468
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1363,6 +1370,7 @@ RectTransform:
   m_Children:
   - {fileID: 1213917915}
   - {fileID: 728840996}
+  - {fileID: 2000001042}
   m_Father: {fileID: 1779637615}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -1697,6 +1705,7 @@ RectTransform:
   m_Children:
   - {fileID: 205693587}
   - {fileID: 1758183620}
+  - {fileID: 2000001022}
   m_Father: {fileID: 1736689720}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -2038,6 +2047,7 @@ RectTransform:
   m_Children:
   - {fileID: 1014356630}
   - {fileID: 520049227}
+  - {fileID: 2000001032}
   m_Father: {fileID: 1604540125}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -2159,6 +2169,7 @@ RectTransform:
   m_Children:
   - {fileID: 1017638316}
   - {fileID: 173861372}
+  - {fileID: 2000001012}
   m_Father: {fileID: 1142884314}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -2368,6 +2379,7 @@ MonoBehaviour:
   depthIndicators:
   - {fileID: 1549914238}
   - {fileID: 91018397}
+  - {fileID: 2000001053}
   positionLabelText: {fileID: 1537398221}
   showDebugLabels: 1
 --- !u!114 &674187559
@@ -3000,6 +3012,7 @@ RectTransform:
   m_Children:
   - {fileID: 617691244}
   - {fileID: 2043940875}
+  - {fileID: 2000001062}
   m_Father: {fileID: 1835519440}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -3947,6 +3960,7 @@ MonoBehaviour:
   depthIndicators:
   - {fileID: 1017638317}
   - {fileID: 173861373}
+  - {fileID: 2000001013}
   positionLabelText: {fileID: 1096293198}
   showDebugLabels: 1
 --- !u!114 &1142884316
@@ -4702,6 +4716,7 @@ RectTransform:
   m_Children:
   - {fileID: 1576358045}
   - {fileID: 814441544}
+  - {fileID: 2000001002}
   m_Father: {fileID: 99623587}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -4774,6 +4789,7 @@ MonoBehaviour:
   depthIndicators:
   - {fileID: 1014356631}
   - {fileID: 520049228}
+  - {fileID: 2000001033}
   positionLabelText: {fileID: 1820641048}
   showDebugLabels: 1
 --- !u!114 &1604540127
@@ -5000,6 +5016,7 @@ MonoBehaviour:
   depthIndicators:
   - {fileID: 205693588}
   - {fileID: 1758183621}
+  - {fileID: 2000001023}
   positionLabelText: {fileID: 771036906}
   showDebugLabels: 1
 --- !u!114 &1736689722
@@ -5323,6 +5340,7 @@ MonoBehaviour:
   depthIndicators:
   - {fileID: 1213917916}
   - {fileID: 728840997}
+  - {fileID: 2000001043}
   positionLabelText: {fileID: 659720388}
   showDebugLabels: 1
 --- !u!114 &1779637617
@@ -5694,6 +5712,7 @@ MonoBehaviour:
   depthIndicators:
   - {fileID: 617691245}
   - {fileID: 2043940876}
+  - {fileID: 2000001063}
   positionLabelText: {fileID: 1488288116}
   showDebugLabels: 1
 --- !u!114 &1835519442
@@ -5765,6 +5784,7 @@ RectTransform:
   m_Children:
   - {fileID: 1549914237}
   - {fileID: 91018396}
+  - {fileID: 2000001052}
   m_Father: {fileID: 674187557}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
