@@ -105,3 +105,8 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+# Prevent accidental Codex/Unity temporary project copies
+/.round*temp*/
+/.codex*temp*/
+/codex-temp*/
+/unity-temp*/
