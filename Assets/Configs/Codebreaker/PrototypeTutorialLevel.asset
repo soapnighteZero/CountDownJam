@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 747c63c38e0a2c948a838f992e5a02cc, type: 3}
+  m_Name: PrototypeTutorialLevel
+  m_EditorClassIdentifier: Assembly-CSharp::CodebreakerLevelConfig
+  levelId: prototype-tutorial
+  displayName: Prototype Tutorial
+  expectedCodeDigits: 050000000300000000000000
+  difficulty: 0
+  totalDiscoveryHitBudget: 12
+  estimatedEquationMoveCount: 5
+  extraAuthoredSeconds: 0
+  useManualTimeOverride: 0
+  manualTimeSeconds: 60
