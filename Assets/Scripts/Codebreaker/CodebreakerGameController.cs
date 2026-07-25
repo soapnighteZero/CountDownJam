@@ -36,6 +36,8 @@ public class CodebreakerGameController : MonoBehaviour
         CurrentPhase == CodebreakerPhase.Exploded;
 
     public event Action<CodebreakerPhase> PhaseChanged;
+    public event Action LevelStarted;
+    public event Action<int, int> DigitRegistered;
 
     private void OnEnable()
     {
@@ -109,6 +111,7 @@ public class CodebreakerGameController : MonoBehaviour
         globalTimer.Initialize(breakdown.FinalSeconds);
         hud.SetTimer(breakdown.FinalSeconds);
         globalTimer.StartTimer();
+        LevelStarted?.Invoke();
     }
 
     public void RestartLevel()
@@ -127,19 +130,68 @@ public class CodebreakerGameController : MonoBehaviour
         }
 
         int digit = levelConfig.ExpectedCodeDigits[CurrentCodeIndex];
+        return TryRevealCurrentCodeDigit(digit);
+    }
 
-        if (!codeSequenceDisplay.RevealDigit(CurrentCodeIndex, digit))
+    public bool TryRegisterDiscoveredDigit(int digit)
+    {
+        if (!configurationValid ||
+            IsTerminalState ||
+            CurrentPhase != CodebreakerPhase.CodeDiscovery ||
+            digit < 0 ||
+            digit > 9 ||
+            CurrentCodeIndex < 0 ||
+            CurrentCodeIndex >= levelConfig.CodeDigitCount)
         {
             return false;
         }
 
-        CurrentCodeIndex++;
+        int expectedDigit =
+            levelConfig.ExpectedCodeDigits[CurrentCodeIndex];
 
-        if (CurrentCodeIndex >= levelConfig.CodeDigitCount)
+        if (digit != expectedDigit)
         {
-            EnterEquationEntryPhase();
+            Debug.LogError(
+                $"CodebreakerGameController rejected discovered digit " +
+                $"{digit} at code index {CurrentCodeIndex}; the authored " +
+                $"level expects {expectedDigit}.",
+                this);
+            return false;
         }
 
+        return TryRevealCurrentCodeDigit(digit);
+    }
+
+    public bool ApplyTimePenalty(float seconds, string reason)
+    {
+        if (float.IsNaN(seconds) ||
+            float.IsInfinity(seconds) ||
+            seconds < 0f)
+        {
+            Debug.LogError(
+                "CodebreakerGameController rejected a non-finite or " +
+                "negative time penalty.",
+                this);
+            return false;
+        }
+
+        if (!configurationValid || IsTerminalState || globalTimer == null)
+        {
+            return false;
+        }
+
+        if (!globalTimer.SubtractTime(seconds))
+        {
+            return false;
+        }
+
+        string penaltyReason = string.IsNullOrWhiteSpace(reason)
+            ? "UNSPECIFIED"
+            : reason;
+        Debug.Log(
+            $"Codebreaker time penalty: -{seconds:0.##} seconds. " +
+            $"Reason: {penaltyReason}",
+            this);
         return true;
     }
 
@@ -412,6 +464,32 @@ public class CodebreakerGameController : MonoBehaviour
         {
             ExplodeBomb("TIME EXPIRED");
         }
+    }
+
+    private bool TryRevealCurrentCodeDigit(int digit)
+    {
+        if (CurrentCodeIndex < 0 ||
+            CurrentCodeIndex >= levelConfig.CodeDigitCount)
+        {
+            return false;
+        }
+
+        int revealedIndex = CurrentCodeIndex;
+
+        if (!codeSequenceDisplay.RevealDigit(revealedIndex, digit))
+        {
+            return false;
+        }
+
+        CurrentCodeIndex++;
+        DigitRegistered?.Invoke(revealedIndex, digit);
+
+        if (CurrentCodeIndex >= levelConfig.CodeDigitCount)
+        {
+            EnterEquationEntryPhase();
+        }
+
+        return true;
     }
 
     private void LogTimerBreakdown(

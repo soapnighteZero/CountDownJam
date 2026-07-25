@@ -134,6 +134,38 @@ public class GlobalBombTimer : MonoBehaviour
         isPermanentlyStopped = true;
     }
 
+    public bool SubtractTime(float seconds)
+    {
+        if (!IsFinite(seconds) ||
+            seconds < 0f ||
+            !isInitialized ||
+            isPermanentlyStopped ||
+            hasExpired)
+        {
+            return false;
+        }
+
+        if (seconds == 0f)
+        {
+            return true;
+        }
+
+        remainingTimeSeconds = Mathf.Max(
+            0f,
+            remainingTimeSeconds - seconds);
+
+        if (remainingTimeSeconds <= 0f)
+        {
+            CompleteExpiration();
+        }
+        else
+        {
+            RemainingTimeChanged?.Invoke(remainingTimeSeconds);
+        }
+
+        return true;
+    }
+
     public void ResetTimer()
     {
         if (!isInitialized)
