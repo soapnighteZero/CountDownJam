@@ -1,3 +1,4 @@
+using System.Text;
 using TMPro;
 using UnityEngine;
 
@@ -6,6 +7,7 @@ public class EquationBombHUD : MonoBehaviour
     [Header("Controllers")]
     [SerializeField] private EquationBombController gameController;
     [SerializeField] private SharedSegmentInventory inventory;
+    [SerializeField] private CodeModuleController codeModule;
 
     [Header("Text")]
     [SerializeField] private TMP_Text equationText;
@@ -14,6 +16,9 @@ public class EquationBombHUD : MonoBehaviour
     [SerializeField] private TMP_Text inventoryText;
     [SerializeField] private TMP_Text instructionText;
     [SerializeField] private TMP_Text resultText;
+    [SerializeField] private TMP_Text codeText;
+
+    private readonly StringBuilder codeBuilder = new StringBuilder();
 
     private void Awake()
     {
@@ -26,6 +31,11 @@ public class EquationBombHUD : MonoBehaviour
         if (inventory == null)
         {
             inventory = FindFirstObjectByType<SharedSegmentInventory>();
+        }
+
+        if (codeModule == null)
+        {
+            codeModule = FindFirstObjectByType<CodeModuleController>();
         }
 
         ValidateReferences();
@@ -44,6 +54,7 @@ public class EquationBombHUD : MonoBehaviour
         }
 
         UpdateEquationText();
+        UpdateCodeText();
 
         if (fuseText != null)
         {
@@ -123,6 +134,72 @@ public class EquationBombHUD : MonoBehaviour
         }
     }
 
+    private void UpdateCodeText()
+    {
+        if (codeText == null || codeModule == null)
+        {
+            return;
+        }
+
+        codeBuilder.Clear();
+        bool complete = codeModule.IsComplete;
+
+        if (complete)
+        {
+            codeBuilder.Append("<color=#66FF88>");
+        }
+
+        codeBuilder.Append("CODE  ");
+
+        for (int i = 0; i < codeModule.DigitCount; i++)
+        {
+            bool valid =
+                codeModule.TryGetCurrentDigit(i, out int digit);
+            bool correct =
+                valid && digit == codeModule.GetTargetDigit(i);
+            string color = correct
+                ? "#66FF88"
+                : valid
+                    ? "#FFD166"
+                    : "#8A929C";
+            string value = valid ? digit.ToString() : "?";
+
+            codeBuilder.Append($"<color={color}>[{value}]</color>");
+
+            if (i < codeModule.DigitCount - 1)
+            {
+                codeBuilder.Append(' ');
+            }
+        }
+
+        if (complete)
+        {
+            codeBuilder.Append("</color>");
+        }
+
+        codeBuilder.Append("\nTARGET  ");
+
+        for (int i = 0; i < codeModule.DigitCount; i++)
+        {
+            codeBuilder.Append('[');
+            int target = codeModule.GetTargetDigit(i);
+            codeBuilder.Append(target >= 0 ? target.ToString() : "?");
+            codeBuilder.Append(']');
+
+            if (i < codeModule.DigitCount - 1)
+            {
+                codeBuilder.Append(' ');
+            }
+        }
+
+        if (complete)
+        {
+            codeBuilder.Append("\n<color=#66FF88>CODE ACCEPTED</color>");
+        }
+
+        codeText.text = codeBuilder.ToString();
+    }
+
     private void ValidateReferences()
     {
         if (gameController == null)
@@ -141,12 +218,21 @@ public class EquationBombHUD : MonoBehaviour
             );
         }
 
+        if (codeModule == null)
+        {
+            Debug.LogError(
+                "CodeModuleController was not found.",
+                this
+            );
+        }
+
         if (equationText == null ||
             fuseText == null ||
             pulseText == null ||
             inventoryText == null ||
             instructionText == null ||
-            resultText == null)
+            resultText == null ||
+            codeText == null)
         {
             Debug.LogError(
                 "EquationBombHUD is missing one or more TMP text references.",

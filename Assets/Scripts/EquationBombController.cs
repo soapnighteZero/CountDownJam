@@ -9,13 +9,14 @@ public class EquationBombController : MonoBehaviour
     [SerializeField] private SharedSegmentInventory sharedInventory;
     [SerializeField]
     private EquationSegmentInteractionController interactionController;
+    [SerializeField] private CodeModuleController codeModule;
 
     [Header("Level Settings")]
-    [SerializeField, Range(0, 9)] private int startingDigitA = 8;
-    [SerializeField, Range(0, 9)] private int startingDigitB = 5;
+    [SerializeField, Range(0, 9)] private int startingDigitA = 3;
+    [SerializeField, Range(0, 9)] private int startingDigitB = 8;
     [SerializeField, Min(0)] private int startingSharedSegments;
-    [SerializeField, Min(0.1f)] private float secondsPerPulse = 10f;
-    [SerializeField, Min(0.1f)] private float masterFuseDuration = 60f;
+    [SerializeField, Min(0.1f)] private float secondsPerPulse = 15f;
+    [SerializeField, Min(0.1f)] private float masterFuseDuration = 90f;
 
     [Header("Runtime Debug")]
     [SerializeField] private float pulseTimer;
@@ -33,6 +34,9 @@ public class EquationBombController : MonoBehaviour
     public bool EquationSatisfied =>
         TryGetDisplayValues(out int valueA, out int valueB) &&
         valueA - valueB == 0;
+    public bool CodeComplete =>
+        codeModule != null && codeModule.IsComplete;
+    public bool SystemReady => EquationSatisfied && CodeComplete;
     public string StatusMessage
     {
         get
@@ -44,12 +48,32 @@ public class EquationBombController : MonoBehaviour
 
             if (!TryGetDisplayValues(out int valueA, out int valueB))
             {
-                return "REPAIR INVALID DISPLAY BEFORE NEXT PULSE";
+                return
+                    "REPAIR INVALID COUNTDOWN DISPLAY BEFORE NEXT PULSE";
             }
 
-            return valueA - valueB == 0
-                ? "CALIBRATED - PRESS SPACE TO DEFUSE"
-                : "MAKE A - B = 0";
+            bool equationReady = valueA - valueB == 0;
+            bool codeReady = CodeComplete;
+            string targetCode = GetTargetCodeLabel();
+
+            if (!equationReady && !codeReady)
+            {
+                return
+                    $"CALIBRATE A - B = 0 AND BUILD CODE {targetCode}";
+            }
+
+            if (equationReady && !codeReady)
+            {
+                return
+                    $"CALIBRATION READY - COMPLETE CODE {targetCode}";
+            }
+
+            if (!equationReady)
+            {
+                return "CODE ACCEPTED - CALIBRATE A - B = 0";
+            }
+
+            return "SYSTEM READY - PRESS SPACE TO DEFUSE";
         }
     }
 
@@ -83,6 +107,7 @@ public class EquationBombController : MonoBehaviour
         displayA.SetDigit(startingDigitA);
         displayB.SetDigit(startingDigitB);
         sharedInventory.SetCount(startingSharedSegments);
+        codeModule.ClearCode();
         pulseTimer = secondsPerPulse;
         masterFuseRemaining = masterFuseDuration;
         gameResolved = false;
@@ -133,7 +158,8 @@ public class EquationBombController : MonoBehaviour
         if (displayA == null ||
             displayB == null ||
             sharedInventory == null ||
-            interactionController == null)
+            interactionController == null ||
+            codeModule == null)
         {
             Debug.LogError(
                 "Equation prototype is missing one or more required " +
@@ -147,6 +173,25 @@ public class EquationBombController : MonoBehaviour
         {
             Debug.LogError(
                 "Display A and Display B must be different displays.",
+                this
+            );
+            return false;
+        }
+
+        if (!codeModule.ValidateConfiguration())
+        {
+            Debug.LogError(
+                "Code module configuration is invalid.",
+                this
+            );
+            return false;
+        }
+
+        if (codeModule.ContainsDisplay(displayA) ||
+            codeModule.ContainsDisplay(displayB))
+        {
+            Debug.LogError(
+                "Countdown displays cannot also be code displays.",
                 this
             );
             return false;
@@ -171,17 +216,33 @@ public class EquationBombController : MonoBehaviour
             return;
         }
 
-        if (EquationSatisfied)
+        if (interactionController != null &&
+            interactionController.IsDragging)
+        {
+            return;
+        }
+
+        if (SystemReady)
         {
             playerWon = true;
             gameResolved = true;
             statusMessage = "BOMB DEFUSED";
             DisableInteraction();
-            Debug.Log("Bomb defused with A - B = 0.", this);
+            Debug.Log(
+                "Bomb defused with a valid equation and code.",
+                this
+            );
             return;
         }
 
-        Explode("Defuse attempted before A - B equalled zero.");
+        bool equationReady = EquationSatisfied;
+        bool codeReady = CodeComplete;
+        string reason = !equationReady && !codeReady
+            ? "The equation and code were incomplete."
+            : !equationReady
+                ? "The equation was incomplete."
+                : "The code was incomplete.";
+        Explode($"Defuse attempted too early. {reason}");
     }
 
     private void ExecuteCountdownPulse()
@@ -252,5 +313,23 @@ public class EquationBombController : MonoBehaviour
         {
             interactionController.enabled = false;
         }
+    }
+
+    private string GetTargetCodeLabel()
+    {
+        if (codeModule == null || codeModule.DigitCount == 0)
+        {
+            return "?";
+        }
+
+        string label = string.Empty;
+
+        for (int i = 0; i < codeModule.DigitCount; i++)
+        {
+            int digit = codeModule.GetTargetDigit(i);
+            label += digit >= 0 ? digit.ToString() : "?";
+        }
+
+        return label;
     }
 }
