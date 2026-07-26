@@ -9891,6 +9891,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SharedSegmentInventory
   storedSegments: 0
+  capacity: 14
 --- !u!114 &1567212527
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9914,6 +9915,7 @@ MonoBehaviour:
   startingDigitA: 3
   startingDigitB: 8
   totalPhysicalSegments: 12
+  trayCapacity: 2
   successAdvanceDelaySeconds: 0.6
 --- !u!114 &1567212528
 MonoBehaviour:
