@@ -4,8 +4,6 @@ using UnityEngine;
 
 public class CodebreakerEquationHUD : MonoBehaviour
 {
-    private const string Instruction =
-        "DRAG LIT SEGMENTS BETWEEN DISPLAYS AND BUFFER";
     private const string EquationReadyMessage =
         "<b>EQUATION VALID</b>\n" +
         "<size=18>PRESS SPACE TO SUBMIT</size>";
@@ -63,7 +61,7 @@ public class CodebreakerEquationHUD : MonoBehaviour
     {
         if (targetEquationText != null)
         {
-            targetEquationText.text = $"= {targetDigit}";
+            targetEquationText.text = $"=  {targetDigit}";
         }
     }
 
@@ -225,7 +223,9 @@ public class CodebreakerEquationHUD : MonoBehaviour
 
         if (instructionText != null)
         {
-            instructionText.text = Instruction;
+            instructionText.text = string.Empty;
+            instructionText.raycastTarget = false;
+            instructionText.gameObject.SetActive(false);
         }
     }
 

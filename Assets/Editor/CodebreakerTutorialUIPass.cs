@@ -24,8 +24,7 @@ public static class CodebreakerTutorialUIPass
     private const string PhaseOneInstruction =
         "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
         "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
-    private const string PhaseTwoInstruction =
-        "DRAG LIT SEGMENTS BETWEEN DISPLAYS AND BUFFER";
+    private const string PhaseTwoInstruction = "";
     private const string SuccessReport =
         "FINAL EQUATION ENTRY UI CLEANUP BUILT\n\n" +
         "Equation hierarchy refined\n" +
@@ -72,9 +71,9 @@ public static class CodebreakerTutorialUIPass
         new StaticLabelLayout(
             "EquationPlusText",
             "+",
-            new Vector2(0f, -65f),
-            new Vector2(220f, 200f),
-            150f);
+            new Vector2(0f, -100f),
+            new Vector2(260f, 220f),
+            175f);
     private static readonly StaticLabelLayout ReadyTextLayout =
         new StaticLabelLayout(
             "EquationReadyText",
@@ -984,9 +983,10 @@ public static class CodebreakerTutorialUIPass
             context.EquationRoot.transform,
             PlusLabelLayout);
 
+        TMP_Text plusText = plusObject.GetComponent<TMP_Text>();
         ConfigureText(
             plusObject.GetComponent<RectTransform>(),
-            plusObject.GetComponent<TMP_Text>(),
+            plusText,
             PlusLabelLayout.Position,
             PlusLabelLayout.Size,
             PlusLabelLayout.FontSize,
@@ -994,6 +994,8 @@ public static class CodebreakerTutorialUIPass
             setVerticalMiddle: true,
             content: PlusLabelLayout.Text,
             setOverflow: true);
+        Undo.RecordObject(plusText, UndoName);
+        plusText.fontStyle = FontStyles.Bold;
         SetActiveWithUndo(plusObject, true);
 
         GameObject readyObject = CreateOrRepairTextObject(
@@ -1036,13 +1038,15 @@ public static class CodebreakerTutorialUIPass
         ConfigureText(
             context.TargetEquationText.GetComponent<RectTransform>(),
             context.TargetEquationText,
-            new Vector2(500f, -65f),
-            new Vector2(320f, 170f),
+            new Vector2(590f, -100f),
+            new Vector2(360f, 190f),
             104f,
             HorizontalAlignmentOptions.Center,
             setVerticalMiddle: true,
-            content: "= 5",
+            content: "=  5",
             setOverflow: true);
+        Undo.RecordObject(context.TargetEquationText, UndoName);
+        context.TargetEquationText.fontStyle = FontStyles.Bold;
 
         ConfigureSupportText(
             context.EntryProgressText,
@@ -1075,6 +1079,9 @@ public static class CodebreakerTutorialUIPass
             setVerticalMiddle: true,
             content: PhaseTwoInstruction,
             setOverflow: true);
+        SetActiveWithUndo(
+            context.EquationInstructionText.gameObject,
+            false);
 
         ConfigureText(
             context.PuzzleInstructionText.GetComponent<RectTransform>(),
@@ -1494,12 +1501,10 @@ public static class CodebreakerTutorialUIPass
         StripSlotVisualComponents(slotSegmentVisual, slotRenderer);
 
         Undo.RecordObject(slotSegmentVisual.transform, UndoName);
-        slotSegmentVisual.transform.localPosition =
-            primaryRenderer.transform.localPosition;
-        slotSegmentVisual.transform.localRotation =
-            primaryRenderer.transform.localRotation;
+        slotSegmentVisual.transform.localPosition = Vector3.zero;
+        slotSegmentVisual.transform.localRotation = Quaternion.identity;
         slotSegmentVisual.transform.localScale =
-            primaryRenderer.transform.localScale;
+            new Vector3(0.9f, 0.18f, 1f);
 
         Undo.RecordObject(slotRenderer, UndoName);
         slotRenderer.sprite = primaryRenderer.sprite;
@@ -1509,7 +1514,7 @@ public static class CodebreakerTutorialUIPass
         slotRenderer.sortingOrder =
             primaryRenderer.sortingOrder - 1;
         slotRenderer.color =
-            new Color(0.55f, 0.72f, 0.78f, 0.22f);
+            new Color(0.55f, 0.72f, 0.78f, 0.18f);
         slotRenderer.enabled = true;
         SetActiveWithUndo(slotSegmentVisual, true);
     }
@@ -1702,6 +1707,11 @@ public static class CodebreakerTutorialUIPass
             PlusLabelLayout.Text,
             expectedActive: true,
             errors: errors);
+        if (plusObject.GetComponent<TMP_Text>().fontStyle !=
+            FontStyles.Bold)
+        {
+            errors.Add("EquationPlusText must use bold font styling.");
+        }
         ValidateTextLayout(
             readyObject.GetComponent<TMP_Text>(),
             ReadyTextLayout,
@@ -1718,13 +1728,18 @@ public static class CodebreakerTutorialUIPass
             context.TargetEquationText,
             new StaticLabelLayout(
                 context.TargetEquationText.gameObject.name,
-                "= 5",
-                new Vector2(500f, -65f),
-                new Vector2(320f, 170f),
+                "=  5",
+                new Vector2(590f, -100f),
+                new Vector2(360f, 190f),
                 104f),
-            "= 5",
+            "=  5",
             context.TargetEquationText.gameObject.activeSelf,
             errors);
+        if (context.TargetEquationText.fontStyle != FontStyles.Bold)
+        {
+            errors.Add(
+                "targetEquationText must use bold font styling.");
+        }
         ValidateTextLayout(
             context.EquationInstructionText,
             new StaticLabelLayout(
@@ -1734,7 +1749,7 @@ public static class CodebreakerTutorialUIPass
                 new Vector2(1200f, 40f),
                 16f),
             PhaseTwoInstruction,
-            context.EquationInstructionText.gameObject.activeSelf,
+            expectedActive: false,
             errors);
         ValidateTextLayout(
             context.PuzzleInstructionText,
@@ -2405,14 +2420,12 @@ public static class CodebreakerTutorialUIPass
 
         SpriteRenderer slotRenderer = slotRenderers[0];
         Color expectedColor =
-            new Color(0.55f, 0.72f, 0.78f, 0.22f);
+            new Color(0.55f, 0.72f, 0.78f, 0.18f);
 
-        if (slotSegmentVisual.localPosition !=
-                primaryRenderer.transform.localPosition ||
-            slotSegmentVisual.localRotation !=
-                primaryRenderer.transform.localRotation ||
+        if (slotSegmentVisual.localPosition != Vector3.zero ||
+            slotSegmentVisual.localRotation != Quaternion.identity ||
             slotSegmentVisual.localScale !=
-                primaryRenderer.transform.localScale ||
+                new Vector3(0.9f, 0.18f, 1f) ||
             slotRenderer.sprite != primaryRenderer.sprite ||
             slotRenderer.sharedMaterial !=
                 primaryRenderer.sharedMaterial ||
