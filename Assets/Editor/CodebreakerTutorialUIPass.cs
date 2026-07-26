@@ -25,14 +25,13 @@ public static class CodebreakerTutorialUIPass
         "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
         "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
     private const string PhaseTwoInstruction =
-        "MOVE SEGMENTS BETWEEN THE TWO DISPLAYS AND BUFFER\n" +
-        "MAKE THE EQUATION TRUE, THEN PRESS SPACE";
+        "DRAG LIT SEGMENTS BETWEEN DISPLAYS AND BUFFER";
     private const string SuccessReport =
-        "CODEBREAKER USABILITY FEEDBACK PASS BUILT\n\n" +
-        "Two Buffer slots added\n" +
-        "Central equation-ready feedback wired\n" +
-        "Buffer-full feedback moved near Buffer\n" +
-        "Phase 1 objective hierarchy improved\n" +
+        "FINAL EQUATION ENTRY UI CLEANUP BUILT\n\n" +
+        "Equation hierarchy refined\n" +
+        "Buffer backdrop and token backgrounds hidden\n" +
+        "Two segment-shaped Buffer slots rebuilt\n" +
+        "Buffer count label clarified\n" +
         "Gameplay rules preserved";
     private const string FiveDigitWiringSuccessReport =
         "FIVE-DIGIT PUZZLE CONFIGS WIRED\n\n" +
@@ -73,23 +72,23 @@ public static class CodebreakerTutorialUIPass
         new StaticLabelLayout(
             "EquationPlusText",
             "+",
-            new Vector2(0f, -80f),
-            new Vector2(130f, 140f),
-            96f);
+            new Vector2(0f, -65f),
+            new Vector2(220f, 200f),
+            150f);
     private static readonly StaticLabelLayout ReadyTextLayout =
         new StaticLabelLayout(
             "EquationReadyText",
             string.Empty,
-            new Vector2(500f, -160f),
-            new Vector2(420f, 46f),
-            23f);
+            new Vector2(0f, -225f),
+            new Vector2(700f, 90f),
+            28f);
     private static readonly StaticLabelLayout BufferFeedbackLayout =
         new StaticLabelLayout(
             "BufferFeedbackText",
             string.Empty,
-            new Vector2(0f, -355f),
+            new Vector2(0f, -365f),
             new Vector2(900f, 42f),
-            20f);
+            18f);
 
     [MenuItem(MenuPath)]
     private static void BuildTutorialUiPass()
@@ -543,6 +542,10 @@ public static class CodebreakerTutorialUIPass
             InventoryTray =
                 RequireUniqueComponent<SegmentInventoryTray>(
                     targetScene,
+                    errors),
+            InventoryDropZone =
+                RequireUniqueComponent<InventoryDropZone>(
+                    targetScene,
                     errors)
         };
 
@@ -556,6 +559,36 @@ public static class CodebreakerTutorialUIPass
             "EquationEntryRoot",
             "CodebreakerHUDCanvas",
             errors);
+        ValidateTrayDropZonePlacement(
+            context.InventoryDropZone,
+            context.InventoryTray,
+            errors);
+
+        if (context.InventoryDropZone != null)
+        {
+            context.DropZoneColliders =
+                context.InventoryDropZone
+                    .GetComponentsInChildren<Collider2D>(true);
+
+            if (context.DropZoneColliders.Length == 0)
+            {
+                errors.Add(
+                    "InventoryDropZone must retain at least one Collider2D.");
+            }
+            else
+            {
+                context.DropZoneColliderEnabledStates =
+                    new bool[context.DropZoneColliders.Length];
+
+                for (int i = 0;
+                    i < context.DropZoneColliders.Length;
+                    i++)
+                {
+                    context.DropZoneColliderEnabledStates[i] =
+                        context.DropZoneColliders[i].enabled;
+                }
+            }
+        }
 
         if (context.EquationHud != null)
         {
@@ -582,6 +615,18 @@ public static class CodebreakerTutorialUIPass
             context.EquationInstructionText = ReadTextReference(
                 context.EquationHud,
                 "instructionText",
+                errors);
+            context.SerializedEquationOperatorText = ReadTextReference(
+                context.EquationHud,
+                "equationOperatorText",
+                errors);
+            context.SerializedEquationReadyText = ReadTextReference(
+                context.EquationHud,
+                "equationReadyText",
+                errors);
+            context.SerializedBufferFeedbackText = ReadTextReference(
+                context.EquationHud,
+                "bufferFeedbackText",
                 errors);
         }
 
@@ -647,6 +692,13 @@ public static class CodebreakerTutorialUIPass
                 context.InventoryTray,
                 "countText",
                 errors);
+
+            if (context.CountText != null)
+            {
+                context.CountFontAsset = context.CountText.font;
+                context.CountSharedMaterial =
+                    context.CountText.fontSharedMaterial;
+            }
         }
 
         if (context.TokenTemplate != null)
@@ -660,12 +712,120 @@ public static class CodebreakerTutorialUIPass
                     "SegmentInventoryTray tokenTemplate.VisualObject must " +
                     "be assigned.");
             }
-            else if (context.TokenVisualObject
-                .GetComponentsInChildren<SpriteRenderer>(true).Length == 0)
+            else
+            {
+                SpriteRenderer[] visualRenderers =
+                    context.TokenVisualObject
+                        .GetComponentsInChildren<SpriteRenderer>(true);
+
+                if (visualRenderers.Length == 0)
+                {
+                    errors.Add(
+                        "SegmentInventoryTray tokenTemplate.VisualObject " +
+                        "must contain at least one SpriteRenderer.");
+                }
+                else if (visualRenderers.Length == 1)
+                {
+                    context.PrimarySegmentRenderer = visualRenderers[0];
+                }
+                else
+                {
+                    int highestSortingOrder = int.MinValue;
+
+                    foreach (SpriteRenderer renderer in visualRenderers)
+                    {
+                        highestSortingOrder = Mathf.Max(
+                            highestSortingOrder,
+                            renderer.sortingOrder);
+                    }
+
+                    List<SpriteRenderer> highestRenderers =
+                        new List<SpriteRenderer>();
+
+                    foreach (SpriteRenderer renderer in visualRenderers)
+                    {
+                        if (renderer.sortingOrder == highestSortingOrder)
+                        {
+                            highestRenderers.Add(renderer);
+                        }
+                    }
+
+                    if (highestRenderers.Count != 1)
+                    {
+                        errors.Add(
+                            "tokenTemplate.VisualObject has multiple " +
+                            "SpriteRenderers tied for the highest " +
+                            $"sortingOrder ({highestSortingOrder}); exactly " +
+                            "one primary renderer is required.");
+                    }
+                    else
+                    {
+                        context.PrimarySegmentRenderer =
+                            highestRenderers[0];
+                    }
+                }
+
+                context.TokenTemplateRenderers =
+                    context.TokenTemplate.gameObject
+                        .GetComponentsInChildren<SpriteRenderer>(true);
+
+                if (context.PrimarySegmentRenderer != null &&
+                    Array.IndexOf(
+                        context.TokenTemplateRenderers,
+                        context.PrimarySegmentRenderer) < 0)
+                {
+                    errors.Add(
+                        "The selected primary segment renderer must be on " +
+                        "the tokenTemplate GameObject or inside its " +
+                        "hierarchy.");
+                }
+                else if (context.PrimarySegmentRenderer != null &&
+                    !context.PrimarySegmentRenderer.enabled)
+                {
+                    errors.Add(
+                        "The selected primary segment renderer must be " +
+                        "enabled.");
+                }
+                else if (context.PrimarySegmentRenderer != null)
+                {
+                    CapturePrimaryRendererState(context);
+                }
+            }
+        }
+
+        if (context.InventoryTray != null &&
+            context.TokenContainer != null)
+        {
+            List<SpriteRenderer> backdropRenderers =
+                new List<SpriteRenderer>();
+
+            foreach (SpriteRenderer renderer in
+                context.InventoryTray
+                    .GetComponentsInChildren<SpriteRenderer>(true))
+            {
+                bool insideTokenContainer =
+                    renderer.transform == context.TokenContainer ||
+                    renderer.transform.IsChildOf(context.TokenContainer);
+                bool insideTokenTemplate =
+                    context.TokenTemplate != null &&
+                    (renderer.transform ==
+                        context.TokenTemplate.transform ||
+                     renderer.transform.IsChildOf(
+                        context.TokenTemplate.transform));
+
+                if (!insideTokenContainer && !insideTokenTemplate)
+                {
+                    backdropRenderers.Add(renderer);
+                }
+            }
+
+            context.TrayBackdropRenderers = backdropRenderers.ToArray();
+
+            if (context.TrayBackdropRenderers.Length == 0)
             {
                 errors.Add(
-                    "SegmentInventoryTray tokenTemplate.VisualObject must " +
-                    "contain at least one SpriteRenderer.");
+                    "SegmentInventoryTray must contain at least one backdrop " +
+                    "SpriteRenderer outside tokenContainer.");
             }
         }
 
@@ -706,6 +866,7 @@ public static class CodebreakerTutorialUIPass
             context.PuzzleFeedbackText,
             "puzzleFeedbackText",
             errors);
+        ValidateTextRect(context.CountText, "countText", errors);
 
         if (context.TargetEquationText != null &&
             context.TargetEquationText.GetComponent<CanvasRenderer>() == null)
@@ -731,21 +892,17 @@ public static class CodebreakerTutorialUIPass
                 plusMatches.Count == 1 ? plusMatches[0] : null;
         }
 
-        if (context.EquationPlusText != null)
-        {
-            RequireComponent<RectTransform>(
-                context.EquationPlusText,
-                PlusLabelLayout.Name,
-                errors);
-            RequireComponent<TMP_Text>(
-                context.EquationPlusText,
-                PlusLabelLayout.Name,
-                errors);
-            RequireComponent<CanvasRenderer>(
-                context.EquationPlusText,
-                PlusLabelLayout.Name,
-                errors);
-        }
+        ValidateOptionalTextObject(
+            context.EquationPlusText,
+            context.EquationRoot,
+            PlusLabelLayout.Name,
+            errors);
+
+        ValidateSerializedHudReference(
+            context.SerializedEquationOperatorText,
+            context.EquationPlusText,
+            "equationOperatorText",
+            errors);
 
         context.EquationReadyText = FindOptionalUniqueNamed(
             targetScene,
@@ -756,6 +913,11 @@ public static class CodebreakerTutorialUIPass
             context.EquationRoot,
             ReadyTextLayout.Name,
             errors);
+        ValidateSerializedHudReference(
+            context.SerializedEquationReadyText,
+            context.EquationReadyText,
+            "equationReadyText",
+            errors);
 
         context.BufferFeedbackText = FindOptionalUniqueNamed(
             targetScene,
@@ -765,6 +927,11 @@ public static class CodebreakerTutorialUIPass
             context.BufferFeedbackText,
             context.EquationRoot,
             BufferFeedbackLayout.Name,
+            errors);
+        ValidateSerializedHudReference(
+            context.SerializedBufferFeedbackText,
+            context.BufferFeedbackText,
+            "bufferFeedbackText",
             errors);
 
         context.BufferCapacitySlotsRoot = FindOptionalUniqueNamed(
@@ -869,9 +1036,9 @@ public static class CodebreakerTutorialUIPass
         ConfigureText(
             context.TargetEquationText.GetComponent<RectTransform>(),
             context.TargetEquationText,
-            new Vector2(500f, -80f),
-            new Vector2(280f, 140f),
-            92f,
+            new Vector2(500f, -65f),
+            new Vector2(320f, 170f),
+            104f,
             HorizontalAlignmentOptions.Center,
             setVerticalMiddle: true,
             content: "= 5",
@@ -879,31 +1046,31 @@ public static class CodebreakerTutorialUIPass
 
         ConfigureSupportText(
             context.EntryProgressText,
-            new Vector2(-650f, 90f),
-            new Vector2(520f, 40f),
-            22f);
+            new Vector2(-690f, 85f),
+            new Vector2(500f, 36f),
+            20f);
         ConfigureSupportText(
             context.CurrentValuesText,
-            new Vector2(-650f, 48f),
-            new Vector2(570f, 40f),
-            23f);
+            new Vector2(-690f, 45f),
+            new Vector2(540f, 36f),
+            19f);
         ConfigureSupportText(
             context.AcceptedDigitsText,
-            new Vector2(-650f, 6f),
-            new Vector2(520f, 40f),
-            23f);
+            new Vector2(-690f, 5f),
+            new Vector2(500f, 36f),
+            19f);
         ConfigureSupportText(
             context.FeedbackText,
-            new Vector2(-650f, -42f),
-            new Vector2(590f, 56f),
-            21f);
+            new Vector2(-690f, -38f),
+            new Vector2(550f, 48f),
+            18f);
 
         ConfigureText(
             context.EquationInstructionText.GetComponent<RectTransform>(),
             context.EquationInstructionText,
-            new Vector2(0f, -290f),
-            new Vector2(1250f, 60f),
-            18f,
+            new Vector2(0f, -445f),
+            new Vector2(1200f, 40f),
+            16f,
             HorizontalAlignmentOptions.Center,
             setVerticalMiddle: true,
             content: PhaseTwoInstruction,
@@ -922,22 +1089,26 @@ public static class CodebreakerTutorialUIPass
         ConfigureAsNonInteractive(context.PuzzleProgressText);
         ConfigureAsNonInteractive(context.HitsLeftText);
         ConfigureAsNonInteractive(context.PuzzleFeedbackText);
-        ConfigureAsNonInteractive(context.CountText);
 
         ConfigureTrayLayout(context.InventoryTray);
+        ConfigureCountText(context.CountText);
+        DisableTrayBackdropRenderers(context.TrayBackdropRenderers);
+        DisableNonPrimaryTokenRenderers(
+            context.TokenTemplateRenderers,
+            context.PrimarySegmentRenderer);
         GameObject slotsRoot = CreateOrRepairSlotsRoot(context);
         GameObject slot01 = CreateOrRepairBufferSlot(
             context.BufferSlotVisual01,
-            context.TokenVisualObject,
+            context.PrimarySegmentRenderer,
             slotsRoot.transform,
             "BufferSlotVisual_01",
-            new Vector3(-0.75f, 0.15f, 0f));
+            new Vector3(-0.9f, 0.1f, 0f));
         GameObject slot02 = CreateOrRepairBufferSlot(
             context.BufferSlotVisual02,
-            context.TokenVisualObject,
+            context.PrimarySegmentRenderer,
             slotsRoot.transform,
             "BufferSlotVisual_02",
-            new Vector3(0.75f, 0.15f, 0f));
+            new Vector3(0.9f, 0.1f, 0f));
 
         AssignHudReferences(
             context.EquationHud,
@@ -1017,12 +1188,61 @@ public static class CodebreakerTutorialUIPass
         RequireSerializedProperty(
             serializedTray,
             "firstTokenLocalPosition").vector2Value =
-                new Vector2(-0.75f, 0.15f);
+                new Vector2(-0.9f, 0.1f);
         RequireSerializedProperty(
             serializedTray,
             "tokenSpacing").vector2Value =
-                new Vector2(1.5f, 0f);
+                new Vector2(1.8f, 0f);
         serializedTray.ApplyModifiedProperties();
+    }
+
+    private static void ConfigureCountText(TMP_Text countText)
+    {
+        RectTransform rectTransform =
+            countText.GetComponent<RectTransform>();
+
+        Undo.RecordObject(rectTransform, UndoName);
+        rectTransform.localPosition = new Vector3(0f, 0.95f, 0f);
+        rectTransform.localRotation = Quaternion.identity;
+        rectTransform.localScale = Vector3.one;
+        rectTransform.sizeDelta = new Vector2(6f, 0.8f);
+
+        Undo.RecordObject(countText, UndoName);
+        countText.text = "BUFFER 0 / 2";
+        countText.fontSize = 3.2f;
+        countText.horizontalAlignment =
+            HorizontalAlignmentOptions.Center;
+        countText.verticalAlignment = VerticalAlignmentOptions.Middle;
+        countText.enableAutoSizing = false;
+        countText.overflowMode = TextOverflowModes.Overflow;
+        countText.raycastTarget = false;
+        countText.richText = true;
+    }
+
+    private static void DisableTrayBackdropRenderers(
+        SpriteRenderer[] backdropRenderers)
+    {
+        foreach (SpriteRenderer renderer in backdropRenderers)
+        {
+            Undo.RecordObject(renderer, UndoName);
+            renderer.enabled = false;
+        }
+    }
+
+    private static void DisableNonPrimaryTokenRenderers(
+        SpriteRenderer[] tokenRenderers,
+        SpriteRenderer primaryRenderer)
+    {
+        foreach (SpriteRenderer renderer in tokenRenderers)
+        {
+            if (renderer == primaryRenderer)
+            {
+                continue;
+            }
+
+            Undo.RecordObject(renderer, UndoName);
+            renderer.enabled = false;
+        }
     }
 
     private static GameObject CreateOrRepairSlotsRoot(
@@ -1056,7 +1276,7 @@ public static class CodebreakerTutorialUIPass
 
     private static GameObject CreateOrRepairBufferSlot(
         GameObject existingObject,
-        GameObject sourceVisual,
+        SpriteRenderer primaryRenderer,
         Transform parent,
         string objectName,
         Vector3 localPosition)
@@ -1065,8 +1285,7 @@ public static class CodebreakerTutorialUIPass
 
         if (slotObject == null)
         {
-            slotObject = Object.Instantiate(sourceVisual);
-            slotObject.name = objectName;
+            slotObject = new GameObject(objectName);
             Undo.RegisterCreatedObjectUndo(
                 slotObject,
                 $"Create {objectName}");
@@ -1083,86 +1302,255 @@ public static class CodebreakerTutorialUIPass
         Undo.RecordObject(slotObject.transform, UndoName);
         slotObject.transform.localPosition = localPosition;
         slotObject.transform.localRotation = Quaternion.identity;
-        slotObject.transform.localScale =
-            sourceVisual.transform.localScale;
+        slotObject.transform.localScale = Vector3.one;
 
-        InventorySegmentToken[] tokenComponents =
-            slotObject.GetComponentsInChildren<InventorySegmentToken>(true);
+        StripSlotRootComponents(slotObject);
 
-        foreach (InventorySegmentToken component in tokenComponents)
+        GameObject slotSegmentVisual =
+            FindDirectChild(slotObject, "SlotSegmentVisual");
+
+        if (!CanReuseSlotSegmentVisual(
+                slotSegmentVisual,
+                primaryRenderer))
         {
-            Undo.DestroyObjectImmediate(component);
+            DestroyObsoleteSlotChildren(slotObject, null);
+            slotSegmentVisual =
+                ClonePrimarySegmentVisual(
+                    primaryRenderer,
+                    slotObject.transform);
+        }
+        else
+        {
+            DestroyObsoleteSlotChildren(
+                slotObject,
+                slotSegmentVisual);
         }
 
-        InventoryDropZone[] dropZones =
-            slotObject.GetComponentsInChildren<InventoryDropZone>(true);
-
-        foreach (InventoryDropZone component in dropZones)
-        {
-            Undo.DestroyObjectImmediate(component);
-        }
-
-        foreach (Collider2D collider in
-            slotObject.GetComponentsInChildren<Collider2D>(true))
-        {
-            Undo.RecordObject(collider, UndoName);
-            collider.enabled = false;
-        }
-
-        foreach (Rigidbody2D rigidbody in
-            slotObject.GetComponentsInChildren<Rigidbody2D>(true))
-        {
-            Undo.RecordObject(rigidbody, UndoName);
-            rigidbody.simulated = false;
-        }
-
-        foreach (MonoBehaviour behaviour in
-            slotObject.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (behaviour == null)
-            {
-                continue;
-            }
-
-            Undo.RecordObject(behaviour, UndoName);
-            behaviour.enabled = false;
-        }
-
-        SpriteRenderer[] sourceRenderers =
-            sourceVisual.GetComponentsInChildren<SpriteRenderer>(true);
-        SpriteRenderer[] slotRenderers =
-            slotObject.GetComponentsInChildren<SpriteRenderer>(true);
-
-        if (sourceRenderers.Length != slotRenderers.Length)
-        {
-            throw new InvalidOperationException(
-                $"{objectName} SpriteRenderer structure does not match " +
-                "tokenTemplate.VisualObject.");
-        }
-
-        for (int i = 0; i < slotRenderers.Length; i++)
-        {
-            SpriteRenderer sourceRenderer = sourceRenderers[i];
-            SpriteRenderer slotRenderer = slotRenderers[i];
-            Color sourceColor = sourceRenderer.color;
-
-            Undo.RecordObject(slotRenderer, UndoName);
-            slotRenderer.sprite = sourceRenderer.sprite;
-            slotRenderer.sharedMaterial = sourceRenderer.sharedMaterial;
-            slotRenderer.sortingLayerID =
-                sourceRenderer.sortingLayerID;
-            slotRenderer.enabled = true;
-            slotRenderer.color = new Color(
-                sourceColor.r,
-                sourceColor.g,
-                sourceColor.b,
-                0.18f);
-            slotRenderer.sortingOrder =
-                sourceRenderer.sortingOrder - 1;
-        }
+        ConfigureSlotSegmentVisual(
+            slotSegmentVisual,
+            primaryRenderer);
 
         SetActiveWithUndo(slotObject, true);
         return slotObject;
+    }
+
+    private static void StripSlotRootComponents(GameObject slotObject)
+    {
+        foreach (MonoBehaviour behaviour in
+            slotObject.GetComponents<MonoBehaviour>())
+        {
+            if (behaviour != null)
+            {
+                Undo.DestroyObjectImmediate(behaviour);
+            }
+        }
+
+        foreach (Collider2D collider in
+            slotObject.GetComponents<Collider2D>())
+        {
+            Undo.DestroyObjectImmediate(collider);
+        }
+
+        foreach (Rigidbody2D rigidbody in
+            slotObject.GetComponents<Rigidbody2D>())
+        {
+            Undo.DestroyObjectImmediate(rigidbody);
+        }
+
+        foreach (SpriteRenderer renderer in
+            slotObject.GetComponents<SpriteRenderer>())
+        {
+            Undo.DestroyObjectImmediate(renderer);
+        }
+    }
+
+    private static GameObject FindDirectChild(
+        GameObject parent,
+        string objectName)
+    {
+        foreach (Transform child in parent.transform)
+        {
+            if (child.name == objectName)
+            {
+                return child.gameObject;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool CanReuseSlotSegmentVisual(
+        GameObject slotSegmentVisual,
+        SpriteRenderer primaryRenderer)
+    {
+        if (slotSegmentVisual == null)
+        {
+            return false;
+        }
+
+        SpriteRenderer[] renderers =
+            slotSegmentVisual
+                .GetComponentsInChildren<SpriteRenderer>(true);
+
+        return renderers.Length == 1 &&
+            renderers[0].sprite == primaryRenderer.sprite &&
+            renderers[0].sharedMaterial ==
+                primaryRenderer.sharedMaterial &&
+            renderers[0].sortingLayerID ==
+                primaryRenderer.sortingLayerID;
+    }
+
+    private static void DestroyObsoleteSlotChildren(
+        GameObject slotObject,
+        GameObject childToKeep)
+    {
+        List<GameObject> children = new List<GameObject>();
+
+        foreach (Transform child in slotObject.transform)
+        {
+            children.Add(child.gameObject);
+        }
+
+        foreach (GameObject child in children)
+        {
+            if (child == null ||
+                child.transform.parent != slotObject.transform)
+            {
+                throw new InvalidOperationException(
+                    $"Refusing to remove an obsolete child from " +
+                    $"{slotObject.name} because it is not a direct " +
+                    "descendant of that slot root.");
+            }
+        }
+
+        foreach (GameObject child in children)
+        {
+            if (child != childToKeep)
+            {
+                Undo.DestroyObjectImmediate(child);
+            }
+        }
+    }
+
+    private static GameObject ClonePrimarySegmentVisual(
+        SpriteRenderer primaryRenderer,
+        Transform parent)
+    {
+        SpriteRenderer[] sourceOwnerRenderers =
+            primaryRenderer.gameObject.GetComponents<SpriteRenderer>();
+        int primaryComponentIndex =
+            Array.IndexOf(sourceOwnerRenderers, primaryRenderer);
+
+        if (primaryComponentIndex < 0)
+        {
+            throw new InvalidOperationException(
+                "The validated primary segment renderer could not be " +
+                "located on its owning GameObject.");
+        }
+
+        GameObject slotSegmentVisual =
+            Object.Instantiate(primaryRenderer.gameObject);
+        slotSegmentVisual.name = "SlotSegmentVisual";
+        Undo.RegisterCreatedObjectUndo(
+            slotSegmentVisual,
+            "Create SlotSegmentVisual");
+        Undo.SetTransformParent(
+            slotSegmentVisual.transform,
+            parent,
+            "Parent SlotSegmentVisual");
+
+        SpriteRenderer[] clonedOwnerRenderers =
+            slotSegmentVisual.GetComponents<SpriteRenderer>();
+
+        if (primaryComponentIndex >= clonedOwnerRenderers.Length)
+        {
+            throw new InvalidOperationException(
+                "The cloned SlotSegmentVisual does not contain the " +
+                "validated primary renderer component.");
+        }
+
+        StripSlotVisualComponents(
+            slotSegmentVisual,
+            clonedOwnerRenderers[primaryComponentIndex]);
+        return slotSegmentVisual;
+    }
+
+    private static void ConfigureSlotSegmentVisual(
+        GameObject slotSegmentVisual,
+        SpriteRenderer primaryRenderer)
+    {
+        SpriteRenderer[] slotRenderers =
+            slotSegmentVisual
+                .GetComponentsInChildren<SpriteRenderer>(true);
+
+        if (slotRenderers.Length != 1)
+        {
+            throw new InvalidOperationException(
+                "SlotSegmentVisual must contain exactly one " +
+                "SpriteRenderer after cleanup.");
+        }
+
+        SpriteRenderer slotRenderer = slotRenderers[0];
+        StripSlotVisualComponents(slotSegmentVisual, slotRenderer);
+
+        Undo.RecordObject(slotSegmentVisual.transform, UndoName);
+        slotSegmentVisual.transform.localPosition =
+            primaryRenderer.transform.localPosition;
+        slotSegmentVisual.transform.localRotation =
+            primaryRenderer.transform.localRotation;
+        slotSegmentVisual.transform.localScale =
+            primaryRenderer.transform.localScale;
+
+        Undo.RecordObject(slotRenderer, UndoName);
+        slotRenderer.sprite = primaryRenderer.sprite;
+        slotRenderer.sharedMaterial = primaryRenderer.sharedMaterial;
+        slotRenderer.sortingLayerID =
+            primaryRenderer.sortingLayerID;
+        slotRenderer.sortingOrder =
+            primaryRenderer.sortingOrder - 1;
+        slotRenderer.color =
+            new Color(0.55f, 0.72f, 0.78f, 0.22f);
+        slotRenderer.enabled = true;
+        SetActiveWithUndo(slotSegmentVisual, true);
+    }
+
+    private static void StripSlotVisualComponents(
+        GameObject slotSegmentVisual,
+        SpriteRenderer rendererToKeep)
+    {
+        foreach (MonoBehaviour behaviour in
+            slotSegmentVisual
+                .GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (behaviour != null)
+            {
+                Undo.DestroyObjectImmediate(behaviour);
+            }
+        }
+
+        foreach (Collider2D collider in
+            slotSegmentVisual
+                .GetComponentsInChildren<Collider2D>(true))
+        {
+            Undo.DestroyObjectImmediate(collider);
+        }
+
+        foreach (Rigidbody2D rigidbody in
+            slotSegmentVisual
+                .GetComponentsInChildren<Rigidbody2D>(true))
+        {
+            Undo.DestroyObjectImmediate(rigidbody);
+        }
+
+        foreach (SpriteRenderer renderer in
+            slotSegmentVisual
+                .GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (renderer != rendererToKeep)
+            {
+                Undo.DestroyObjectImmediate(renderer);
+            }
+        }
     }
 
     private static void AssignHudReferences(
@@ -1272,6 +1660,11 @@ public static class CodebreakerTutorialUIPass
             "BufferSlotVisual_02",
             1,
             errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            "SlotSegmentVisual",
+            2,
+            errors);
 
         if (plusObject.transform.parent !=
                 context.EquationRoot.transform ||
@@ -1322,13 +1715,24 @@ public static class CodebreakerTutorialUIPass
             expectedActive: false,
             errors: errors);
         ValidateTextLayout(
+            context.TargetEquationText,
+            new StaticLabelLayout(
+                context.TargetEquationText.gameObject.name,
+                "= 5",
+                new Vector2(500f, -65f),
+                new Vector2(320f, 170f),
+                104f),
+            "= 5",
+            context.TargetEquationText.gameObject.activeSelf,
+            errors);
+        ValidateTextLayout(
             context.EquationInstructionText,
             new StaticLabelLayout(
                 context.EquationInstructionText.gameObject.name,
                 PhaseTwoInstruction,
-                new Vector2(0f, -290f),
-                new Vector2(1250f, 60f),
-                18f),
+                new Vector2(0f, -445f),
+                new Vector2(1200f, 40f),
+                16f),
             PhaseTwoInstruction,
             context.EquationInstructionText.gameObject.activeSelf,
             errors);
@@ -1344,15 +1748,42 @@ public static class CodebreakerTutorialUIPass
             context.PuzzleInstructionText.gameObject.activeSelf,
             errors);
 
+        ValidateSupportTextLayout(
+            context.EntryProgressText,
+            new Vector2(-690f, 85f),
+            new Vector2(500f, 36f),
+            20f,
+            errors);
+        ValidateSupportTextLayout(
+            context.CurrentValuesText,
+            new Vector2(-690f, 45f),
+            new Vector2(540f, 36f),
+            19f,
+            errors);
+        ValidateSupportTextLayout(
+            context.AcceptedDigitsText,
+            new Vector2(-690f, 5f),
+            new Vector2(500f, 36f),
+            19f,
+            errors);
+        ValidateSupportTextLayout(
+            context.FeedbackText,
+            new Vector2(-690f, -38f),
+            new Vector2(550f, 48f),
+            18f,
+            errors);
         ValidateTrayLayout(context.InventoryTray, errors);
+        ValidateCountTextLayout(context, errors);
+        ValidateBackdropCleanup(context, errors);
+        ValidateTokenVisualCleanup(context, errors);
         ValidateSlotVisual(
             slot01,
-            context.TokenVisualObject,
+            context.PrimarySegmentRenderer,
             "BufferSlotVisual_01",
             errors);
         ValidateSlotVisual(
             slot02,
-            context.TokenVisualObject,
+            context.PrimarySegmentRenderer,
             "BufferSlotVisual_02",
             errors);
 
@@ -1415,6 +1846,184 @@ public static class CodebreakerTutorialUIPass
         }
     }
 
+    private static void ValidateSupportTextLayout(
+        TMP_Text text,
+        Vector2 position,
+        Vector2 size,
+        float fontSize,
+        List<string> errors)
+    {
+        RectTransform rectTransform =
+            text.GetComponent<RectTransform>();
+
+        if (rectTransform.anchoredPosition != position ||
+            rectTransform.sizeDelta != size ||
+            rectTransform.anchorMin != new Vector2(0.5f, 0.5f) ||
+            rectTransform.anchorMax != new Vector2(0.5f, 0.5f) ||
+            rectTransform.pivot != new Vector2(0.5f, 0.5f) ||
+            rectTransform.localScale != Vector3.one ||
+            rectTransform.localRotation != Quaternion.identity ||
+            !Mathf.Approximately(text.fontSize, fontSize) ||
+            text.horizontalAlignment != HorizontalAlignmentOptions.Left ||
+            text.verticalAlignment != VerticalAlignmentOptions.Middle ||
+            text.enableAutoSizing ||
+            text.raycastTarget ||
+            text.overflowMode != TextOverflowModes.Overflow)
+        {
+            errors.Add(
+                $"{text.gameObject.name} support-text layout is invalid.");
+        }
+    }
+
+    private static void ValidateCountTextLayout(
+        TutorialContext context,
+        List<string> errors)
+    {
+        TMP_Text countText = context.CountText;
+        RectTransform rectTransform =
+            countText.GetComponent<RectTransform>();
+
+        if (rectTransform.localPosition !=
+                new Vector3(0f, 0.95f, 0f) ||
+            rectTransform.localRotation != Quaternion.identity ||
+            rectTransform.localScale != Vector3.one ||
+            rectTransform.sizeDelta != new Vector2(6f, 0.8f) ||
+            !Mathf.Approximately(countText.fontSize, 3.2f) ||
+            countText.horizontalAlignment !=
+                HorizontalAlignmentOptions.Center ||
+            countText.verticalAlignment !=
+                VerticalAlignmentOptions.Middle ||
+            countText.enableAutoSizing ||
+            countText.overflowMode != TextOverflowModes.Overflow ||
+            countText.raycastTarget ||
+            !countText.richText ||
+            countText.text != "BUFFER 0 / 2" ||
+            countText.font != context.CountFontAsset ||
+            countText.fontSharedMaterial !=
+                context.CountSharedMaterial)
+        {
+            errors.Add("SegmentInventoryTray countText layout is invalid.");
+        }
+    }
+
+    private static void ValidateBackdropCleanup(
+        TutorialContext context,
+        List<string> errors)
+    {
+        SegmentInventoryTray appliedTray =
+            RequireUniqueComponent<SegmentInventoryTray>(
+                context.TargetScene,
+                errors);
+        InventoryDropZone appliedDropZone =
+            RequireUniqueComponent<InventoryDropZone>(
+                context.TargetScene,
+                errors);
+
+        if (appliedTray != context.InventoryTray ||
+            appliedDropZone != context.InventoryDropZone)
+        {
+            errors.Add(
+                "SegmentInventoryTray or InventoryDropZone identity " +
+                "changed.");
+        }
+
+        foreach (SpriteRenderer renderer in
+            context.InventoryTray
+                .GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            bool insideTokenContainer =
+                renderer.transform == context.TokenContainer ||
+                renderer.transform.IsChildOf(context.TokenContainer);
+            bool insideTokenTemplate =
+                renderer.transform == context.TokenTemplate.transform ||
+                renderer.transform.IsChildOf(
+                    context.TokenTemplate.transform);
+
+            if (!insideTokenContainer &&
+                !insideTokenTemplate &&
+                renderer.enabled)
+            {
+                errors.Add(
+                    "A SegmentInventoryTray backdrop SpriteRenderer remains " +
+                    "visible.");
+            }
+        }
+
+        if (context.InventoryDropZone == null ||
+            context.InventoryTray == null ||
+            (context.InventoryDropZone.transform !=
+                context.InventoryTray.transform &&
+             !context.InventoryDropZone.transform.IsChildOf(
+                 context.InventoryTray.transform)))
+        {
+            errors.Add(
+                "InventoryDropZone is no longer on the tray GameObject or " +
+                "inside the SegmentInventoryTray hierarchy.");
+        }
+
+        Collider2D[] currentColliders =
+            context.InventoryDropZone != null
+                ? context.InventoryDropZone
+                    .GetComponentsInChildren<Collider2D>(true)
+                : Array.Empty<Collider2D>();
+
+        if (currentColliders.Length !=
+            context.DropZoneColliders.Length)
+        {
+            errors.Add(
+                "InventoryDropZone Collider2D components were not " +
+                "preserved.");
+            return;
+        }
+
+        for (int i = 0; i < currentColliders.Length; i++)
+        {
+            if (currentColliders[i] != context.DropZoneColliders[i] ||
+                currentColliders[i].enabled !=
+                    context.DropZoneColliderEnabledStates[i])
+            {
+                errors.Add(
+                    "InventoryDropZone Collider2D state changed.");
+            }
+        }
+    }
+
+    private static void ValidateTokenVisualCleanup(
+        TutorialContext context,
+        List<string> errors)
+    {
+        SpriteRenderer primary = context.PrimarySegmentRenderer;
+
+        if (primary == null ||
+            primary.sprite != context.PrimarySprite ||
+            primary.sharedMaterial != context.PrimarySharedMaterial ||
+            primary.sortingLayerID != context.PrimarySortingLayerId ||
+            primary.sortingOrder != context.PrimarySortingOrder ||
+            primary.color != context.PrimaryColor ||
+            !primary.enabled ||
+            primary.enabled != context.PrimaryEnabled ||
+            primary.transform.localPosition !=
+                context.PrimaryLocalPosition ||
+            primary.transform.localRotation !=
+                context.PrimaryLocalRotation ||
+            primary.transform.localScale != context.PrimaryLocalScale)
+        {
+            errors.Add(
+                "The primary token segment renderer was not preserved.");
+        }
+
+        foreach (SpriteRenderer renderer in
+            context.TokenTemplateRenderers)
+        {
+            if (renderer != primary && renderer.enabled)
+            {
+                errors.Add(
+                    "A non-primary token template SpriteRenderer remains " +
+                    "visible.");
+            }
+        }
+    }
+
     private static void ConfigureSupportText(
         TMP_Text text,
         Vector2 position,
@@ -1472,6 +2081,39 @@ public static class CodebreakerTutorialUIPass
         }
 
         text.text = content;
+    }
+
+    private static void CapturePrimaryRendererState(
+        TutorialContext context)
+    {
+        SpriteRenderer primary = context.PrimarySegmentRenderer;
+        context.PrimarySprite = primary.sprite;
+        context.PrimarySharedMaterial = primary.sharedMaterial;
+        context.PrimaryColor = primary.color;
+        context.PrimarySortingLayerId = primary.sortingLayerID;
+        context.PrimarySortingOrder = primary.sortingOrder;
+        context.PrimaryEnabled = primary.enabled;
+        context.PrimaryLocalPosition =
+            primary.transform.localPosition;
+        context.PrimaryLocalRotation =
+            primary.transform.localRotation;
+        context.PrimaryLocalScale = primary.transform.localScale;
+    }
+
+    private static void ValidateSerializedHudReference(
+        TMP_Text serializedReference,
+        GameObject namedObject,
+        string propertyName,
+        List<string> errors)
+    {
+        if (serializedReference == null ||
+            namedObject == null ||
+            serializedReference.gameObject != namedObject)
+        {
+            errors.Add(
+                $"CodebreakerEquationHUD.{propertyName} must reference the " +
+                $"unique {namedObject?.name ?? "required scene object"}.");
+        }
     }
 
     private static TMP_Text ReadTextReference(
@@ -1601,6 +2243,8 @@ public static class CodebreakerTutorialUIPass
         TutorialContext context,
         List<string> errors)
     {
+        List<GameObject> slotSegmentVisuals = new List<GameObject>();
+
         foreach (GameObject gameObject in
             GetSceneGameObjects(context.TargetScene))
         {
@@ -1614,6 +2258,11 @@ public static class CodebreakerTutorialUIPass
                     $"Unexpected Buffer slot visual named " +
                     $"{gameObject.name} exists at " +
                     $"{GetHierarchyPath(gameObject)}.");
+            }
+
+            if (gameObject.name == "SlotSegmentVisual")
+            {
+                slotSegmentVisuals.Add(gameObject);
             }
         }
 
@@ -1630,21 +2279,33 @@ public static class CodebreakerTutorialUIPass
         ValidateOptionalSlot(
             context.BufferSlotVisual01,
             context.BufferCapacitySlotsRoot,
-            context.TokenVisualObject,
             "BufferSlotVisual_01",
             errors);
         ValidateOptionalSlot(
             context.BufferSlotVisual02,
             context.BufferCapacitySlotsRoot,
-            context.TokenVisualObject,
             "BufferSlotVisual_02",
             errors);
+
+        foreach (GameObject slotSegmentVisual in slotSegmentVisuals)
+        {
+            Transform parent = slotSegmentVisual.transform.parent;
+
+            if (parent == null ||
+                (parent.gameObject != context.BufferSlotVisual01 &&
+                 parent.gameObject != context.BufferSlotVisual02))
+            {
+                errors.Add(
+                    "SlotSegmentVisual must be a direct child of " +
+                    "BufferSlotVisual_01 or BufferSlotVisual_02; found at " +
+                    $"{GetHierarchyPath(slotSegmentVisual)}.");
+            }
+        }
     }
 
     private static void ValidateOptionalSlot(
         GameObject slotObject,
         GameObject slotsRoot,
-        GameObject sourceVisual,
         string objectName,
         List<string> errors)
     {
@@ -1661,134 +2322,111 @@ public static class CodebreakerTutorialUIPass
                 "BufferCapacitySlotsRoot.");
         }
 
-        ValidateSlotRendererStructure(
-            slotObject,
-            sourceVisual,
-            objectName,
-            errors);
-    }
+        int slotSegmentVisualCount = 0;
 
-    private static void ValidateSlotRendererStructure(
-        GameObject slotObject,
-        GameObject sourceVisual,
-        string objectName,
-        List<string> errors)
-    {
-        if (slotObject == null || sourceVisual == null)
+        foreach (Transform child in slotObject.transform)
         {
-            return;
+            if (child.name == "SlotSegmentVisual")
+            {
+                slotSegmentVisualCount++;
+            }
         }
 
-        int sourceRendererCount =
-            sourceVisual.GetComponentsInChildren<SpriteRenderer>(true).Length;
-        int slotRendererCount =
-            slotObject.GetComponentsInChildren<SpriteRenderer>(true).Length;
-
-        if (slotRendererCount != sourceRendererCount)
+        if (slotSegmentVisualCount > 1)
         {
             errors.Add(
-                $"{objectName} must contain the same SpriteRenderer " +
-                "structure as tokenTemplate.VisualObject.");
+                $"{objectName} contains {slotSegmentVisualCount} direct " +
+                "children named SlotSegmentVisual; expected at most one " +
+                "before repair.");
         }
     }
 
     private static void ValidateSlotVisual(
         GameObject slotObject,
-        GameObject sourceVisual,
+        SpriteRenderer primaryRenderer,
         string objectName,
         List<string> errors)
     {
-        ValidateSlotRendererStructure(
-            slotObject,
-            sourceVisual,
-            objectName,
-            errors);
-
         Vector3 expectedPosition =
             objectName == "BufferSlotVisual_01"
-                ? new Vector3(-0.75f, 0.15f, 0f)
-                : new Vector3(0.75f, 0.15f, 0f);
+                ? new Vector3(-0.9f, 0.1f, 0f)
+                : new Vector3(0.9f, 0.1f, 0f);
 
         if (slotObject.transform.localPosition != expectedPosition ||
             slotObject.transform.localRotation != Quaternion.identity ||
-            slotObject.transform.localScale !=
-                sourceVisual.transform.localScale ||
+            slotObject.transform.localScale != Vector3.one ||
             !slotObject.activeSelf)
         {
             errors.Add($"{objectName} transform or active state is invalid.");
         }
 
-        if (slotObject
-                .GetComponentsInChildren<InventorySegmentToken>(true)
-                .Length > 0 ||
-            slotObject
-                .GetComponentsInChildren<InventoryDropZone>(true)
-                .Length > 0)
+        Transform slotSegmentVisual = null;
+        int directChildCount = 0;
+
+        foreach (Transform child in slotObject.transform)
+        {
+            directChildCount++;
+
+            if (child.name == "SlotSegmentVisual")
+            {
+                slotSegmentVisual = child;
+            }
+        }
+
+        if (directChildCount != 1 || slotSegmentVisual == null)
         {
             errors.Add(
-                $"{objectName} contains a prohibited gameplay component.");
+                $"{objectName} must contain exactly one direct visual child " +
+                "named SlotSegmentVisual.");
+            return;
         }
 
-        foreach (Collider2D collider in
-            slotObject.GetComponentsInChildren<Collider2D>(true))
+        if (slotObject
+                .GetComponentsInChildren<MonoBehaviour>(true).Length > 0 ||
+            slotObject
+                .GetComponentsInChildren<Collider2D>(true).Length > 0 ||
+            slotObject
+                .GetComponentsInChildren<Rigidbody2D>(true).Length > 0)
         {
-            if (collider.enabled)
-            {
-                errors.Add(
-                    $"{objectName} contains an enabled Collider2D.");
-            }
+            errors.Add(
+                $"{objectName} contains a prohibited behaviour or physics " +
+                "component.");
         }
 
-        foreach (Rigidbody2D rigidbody in
-            slotObject.GetComponentsInChildren<Rigidbody2D>(true))
-        {
-            if (rigidbody.simulated)
-            {
-                errors.Add(
-                    $"{objectName} contains a simulated Rigidbody2D.");
-            }
-        }
-
-        foreach (MonoBehaviour behaviour in
-            slotObject.GetComponentsInChildren<MonoBehaviour>(true))
-        {
-            if (behaviour != null && behaviour.enabled)
-            {
-                errors.Add(
-                    $"{objectName} contains an enabled gameplay " +
-                    "MonoBehaviour.");
-            }
-        }
-
-        SpriteRenderer[] sourceRenderers =
-            sourceVisual.GetComponentsInChildren<SpriteRenderer>(true);
         SpriteRenderer[] slotRenderers =
             slotObject.GetComponentsInChildren<SpriteRenderer>(true);
-        int rendererCount =
-            Mathf.Min(sourceRenderers.Length, slotRenderers.Length);
 
-        for (int i = 0; i < rendererCount; i++)
+        if (slotRenderers.Length != 1)
         {
-            Color sourceColor = sourceRenderers[i].color;
-            Color slotColor = slotRenderers[i].color;
+            errors.Add(
+                $"{objectName} must contain exactly one SpriteRenderer.");
+            return;
+        }
 
-            if (slotRenderers[i].sprite != sourceRenderers[i].sprite ||
-                slotRenderers[i].sharedMaterial !=
-                    sourceRenderers[i].sharedMaterial ||
-                slotRenderers[i].sortingLayerID !=
-                    sourceRenderers[i].sortingLayerID ||
-                !slotRenderers[i].enabled ||
-                !Mathf.Approximately(slotColor.r, sourceColor.r) ||
-                !Mathf.Approximately(slotColor.g, sourceColor.g) ||
-                !Mathf.Approximately(slotColor.b, sourceColor.b) ||
-                !Mathf.Approximately(slotColor.a, 0.18f) ||
-                slotRenderers[i].sortingOrder >
-                    sourceRenderers[i].sortingOrder - 1)
-            {
-                errors.Add(
-                    $"{objectName} SpriteRenderer {i} is not a valid " +
-                    "capacity silhouette.");
-            }
+        SpriteRenderer slotRenderer = slotRenderers[0];
+        Color expectedColor =
+            new Color(0.55f, 0.72f, 0.78f, 0.22f);
+
+        if (slotSegmentVisual.localPosition !=
+                primaryRenderer.transform.localPosition ||
+            slotSegmentVisual.localRotation !=
+                primaryRenderer.transform.localRotation ||
+            slotSegmentVisual.localScale !=
+                primaryRenderer.transform.localScale ||
+            slotRenderer.sprite != primaryRenderer.sprite ||
+            slotRenderer.sharedMaterial !=
+                primaryRenderer.sharedMaterial ||
+            slotRenderer.sortingLayerID !=
+                primaryRenderer.sortingLayerID ||
+            slotRenderer.sortingOrder !=
+                primaryRenderer.sortingOrder - 1 ||
+            slotRenderer.color != expectedColor ||
+            !slotRenderer.enabled ||
+            !slotSegmentVisual.gameObject.activeSelf)
+        {
+            errors.Add(
+                $"{objectName} SlotSegmentVisual is not a valid neutral " +
+                "capacity silhouette.");
         }
     }
 
@@ -1809,11 +2447,11 @@ public static class CodebreakerTutorialUIPass
             RequireSerializedProperty(
                 serializedTray,
                 "firstTokenLocalPosition").vector2Value !=
-                new Vector2(-0.75f, 0.15f) ||
+                new Vector2(-0.9f, 0.1f) ||
             RequireSerializedProperty(
                 serializedTray,
                 "tokenSpacing").vector2Value !=
-                new Vector2(1.5f, 0f))
+                new Vector2(1.8f, 0f))
         {
             errors.Add(
                 "SegmentInventoryTray tutorial token layout is invalid.");
@@ -2013,12 +2651,38 @@ public static class CodebreakerTutorialUIPass
             return;
         }
 
-        if (!child.transform.IsChildOf(parent.transform))
+        if (child.transform == parent.transform ||
+            !child.transform.IsChildOf(parent.transform))
         {
             errors.Add(
                 $"{childLabel} must be a descendant of {parentLabel}; found " +
                 $"at {GetHierarchyPath(child)}.");
         }
+    }
+
+    private static void ValidateTrayDropZonePlacement(
+        InventoryDropZone inventoryDropZone,
+        SegmentInventoryTray inventoryTray,
+        List<string> errors)
+    {
+        if (inventoryDropZone == null || inventoryTray == null)
+        {
+            return;
+        }
+
+        Transform dropZoneTransform = inventoryDropZone.transform;
+        Transform trayTransform = inventoryTray.transform;
+
+        if (dropZoneTransform == trayTransform ||
+            dropZoneTransform.IsChildOf(trayTransform))
+        {
+            return;
+        }
+
+        errors.Add(
+            "InventoryDropZone must be on the SegmentInventoryTray " +
+            "GameObject or inside its hierarchy; found at " +
+            $"{GetHierarchyPath(inventoryDropZone.gameObject)}.");
     }
 
     private static string GetHierarchyPath(GameObject gameObject)
@@ -2043,6 +2707,11 @@ public static class CodebreakerTutorialUIPass
 
     private static void ReportValidationFailures(List<string> errors)
     {
+        foreach (string error in errors)
+        {
+            Debug.LogError(error);
+        }
+
         string report =
             "CODEBREAKER TUTORIAL UI VALIDATION FAILED\n\n- " +
             string.Join("\n- ", errors);
@@ -2058,17 +2727,37 @@ public static class CodebreakerTutorialUIPass
         public CodebreakerEquationHUD EquationHud;
         public LayeredDigitPuzzleController PuzzleController;
         public SegmentInventoryTray InventoryTray;
+        public InventoryDropZone InventoryDropZone;
+        public Collider2D[] DropZoneColliders;
+        public bool[] DropZoneColliderEnabledStates;
         public SharedSegmentInventory Inventory;
         public InventorySegmentToken TokenTemplate;
         public Transform TokenContainer;
         public TMP_Text CountText;
+        public TMP_FontAsset CountFontAsset;
+        public Material CountSharedMaterial;
         public GameObject TokenVisualObject;
+        public SpriteRenderer[] TokenTemplateRenderers;
+        public SpriteRenderer PrimarySegmentRenderer;
+        public SpriteRenderer[] TrayBackdropRenderers;
+        public Sprite PrimarySprite;
+        public Material PrimarySharedMaterial;
+        public Color PrimaryColor;
+        public int PrimarySortingLayerId;
+        public int PrimarySortingOrder;
+        public bool PrimaryEnabled;
+        public Vector3 PrimaryLocalPosition;
+        public Quaternion PrimaryLocalRotation;
+        public Vector3 PrimaryLocalScale;
         public TMP_Text EntryProgressText;
         public TMP_Text TargetEquationText;
         public TMP_Text CurrentValuesText;
         public TMP_Text AcceptedDigitsText;
         public TMP_Text FeedbackText;
         public TMP_Text EquationInstructionText;
+        public TMP_Text SerializedEquationOperatorText;
+        public TMP_Text SerializedEquationReadyText;
+        public TMP_Text SerializedBufferFeedbackText;
         public TMP_Text PuzzleProgressText;
         public TMP_Text HitsLeftText;
         public TMP_Text PuzzleInstructionText;

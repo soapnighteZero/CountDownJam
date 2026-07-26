@@ -46,7 +46,8 @@ public class CodebreakerHUD : MonoBehaviour
         int totalSeconds = Mathf.Max(0, Mathf.CeilToInt(seconds));
         int minutes = totalSeconds / 60;
         int remainingSeconds = totalSeconds % 60;
-        timerText.text = $"TIME {minutes:00}:{remainingSeconds:00}";
+        timerText.text =
+            $"COUNTDOWN {minutes:00}:{remainingSeconds:00}";
     }
 
     public void SetPhase(CodebreakerPhase phase)

@@ -5,8 +5,10 @@ using UnityEngine;
 public class CodebreakerEquationHUD : MonoBehaviour
 {
     private const string Instruction =
-        "MOVE SEGMENTS BETWEEN THE TWO DISPLAYS AND BUFFER\n" +
-        "MAKE THE EQUATION TRUE, THEN PRESS SPACE";
+        "DRAG LIT SEGMENTS BETWEEN DISPLAYS AND BUFFER";
+    private const string EquationReadyMessage =
+        "<b>EQUATION VALID</b>\n" +
+        "<size=18>PRESS SPACE TO SUBMIT</size>";
 
     [Header("Text")]
     [SerializeField] private TMP_Text entryProgressText;
@@ -148,7 +150,13 @@ public class CodebreakerEquationHUD : MonoBehaviour
         }
 
         equationReadyText.text =
-            ready ? "VALID - PRESS SPACE" : string.Empty;
+            ready ? EquationReadyMessage : string.Empty;
+
+        if (ready)
+        {
+            equationReadyText.color = equationReadyColor;
+        }
+
         equationReadyText.gameObject.SetActive(ready);
     }
 
