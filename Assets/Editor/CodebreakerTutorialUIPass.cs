@@ -63,6 +63,7 @@ public static class CodebreakerTutorialUIPass
     private const string PhaseTwoInstruction = "";
     private const string SuccessReport =
         "FINAL EQUATION ENTRY UI CLEANUP BUILT\n\n" +
+        "Discovery guidance moved to lower right\n" +
         "Equation hierarchy refined\n" +
         "Equation status module polished\n" +
         "Buffer backdrop and token backgrounds hidden\n" +
@@ -175,6 +176,48 @@ public static class CodebreakerTutorialUIPass
             18f,
             FontStyles.Normal,
             OrdinaryFeedbackColor);
+    private static readonly DiscoveryGuidanceLayout HitsLeftLayout =
+        new DiscoveryGuidanceLayout(
+            "hitsLeftText",
+            new Vector2(570f, -225f),
+            new Vector2(430f, 46f),
+            27f,
+            FontStyles.Bold,
+            new Color(1f, 0.78f, 0.20f, 1f),
+            "HITS LEFT 4",
+            validateRichText: false,
+            expectedRichText: false,
+            validateActive: false,
+            expectedActive: false);
+    private static readonly DiscoveryGuidanceLayout
+        PuzzleFeedbackLayout =
+            new DiscoveryGuidanceLayout(
+                "puzzleFeedbackText",
+                new Vector2(570f, -280f),
+                new Vector2(430f, 44f),
+                18f,
+                FontStyles.Bold,
+                new Color(1f, 0.45f, 0.25f, 1f),
+                string.Empty,
+                validateRichText: false,
+                expectedRichText: false,
+                validateActive: true,
+                expectedActive: true);
+    private static readonly DiscoveryGuidanceLayout
+        PuzzleInstructionLayout =
+            new DiscoveryGuidanceLayout(
+                "puzzleInstructionText",
+                new Vector2(570f, -390f),
+                new Vector2(430f, 150f),
+                18f,
+                FontStyles.Normal,
+                new Color(0.88f, 0.94f, 0.98f, 1f),
+                PhaseOneInstruction,
+                validateRichText: true,
+                expectedRichText: true,
+                validateActive: false,
+                expectedActive: false);
+
     [MenuItem(MenuPath)]
     private static void BuildTutorialUiPass()
     {
@@ -1387,6 +1430,12 @@ public static class CodebreakerTutorialUIPass
             GlobalTimer = RequireUniqueComponent<GlobalBombTimer>(
                 targetScene,
                 errors),
+            MainCamera = RequireUniqueComponent<Camera>(
+                targetScene,
+                errors),
+            EventSystem = RequireUniqueComponent<EventSystem>(
+                targetScene,
+                errors),
             Hud = RequireUniqueComponent<CodebreakerHUD>(
                 targetScene,
                 errors),
@@ -1409,7 +1458,7 @@ public static class CodebreakerTutorialUIPass
                 RequireUniqueComponent<InventoryDropZone>(
                     targetScene,
                     errors),
-            ReleaseCanvas = FindOptionalUniqueNamed(
+            ReleaseCanvas = FindUniqueNamed(
                 targetScene,
                 ReleaseMenuCanvasName,
                 errors)
@@ -1546,6 +1595,16 @@ public static class CodebreakerTutorialUIPass
                 context.PuzzleController,
                 "puzzleFeedbackText",
                 errors);
+            context.InteractionBlocker =
+                ReadObjectReference<GameObject>(
+                    context.PuzzleController,
+                    "interactionBlocker",
+                    errors);
+            context.SegmentViews =
+                ReadObjectReferenceArray<LayeredSegmentStackView>(
+                    context.PuzzleController,
+                    "segmentViews",
+                    errors);
         }
 
         if (context.GameController != null)
@@ -1592,6 +1651,7 @@ public static class CodebreakerTutorialUIPass
         }
 
         ValidateGameplayControllerReferences(context, errors);
+        ValidateDiscoveryGuidanceReferences(context, errors);
 
         if (context.InventoryTray != null)
         {
@@ -1969,6 +2029,26 @@ public static class CodebreakerTutorialUIPass
                         context.CodeSequenceDisplay.gameObject,
                         "recovered-code display")
                 };
+            context.MainCameraState =
+                new PreservedHierarchyState(
+                    context.MainCamera.gameObject,
+                    "Main Camera");
+            context.EventSystemState =
+                new PreservedHierarchyState(
+                    context.EventSystem.gameObject,
+                    "EventSystem");
+            context.DiscoveryPresentationStates =
+                new PreservedGameObjectState[
+                    context.DiscoveryObjectsToPreserve.Count];
+
+            for (int i = 0;
+                i < context.DiscoveryObjectsToPreserve.Count;
+                i++)
+            {
+                context.DiscoveryPresentationStates[i] =
+                    new PreservedGameObjectState(
+                        context.DiscoveryObjectsToPreserve[i]);
+            }
 
             if (context.ReleaseCanvas != null)
             {
@@ -2096,8 +2176,15 @@ public static class CodebreakerTutorialUIPass
 
         Undo.RecordObject(context.PuzzleProgressText, UndoName);
         context.PuzzleProgressText.text = "DIGIT 1 / 5";
-        Undo.RecordObject(context.PuzzleInstructionText, UndoName);
-        context.PuzzleInstructionText.text = PhaseOneInstruction;
+        ConfigureDiscoveryGuidanceText(
+            context.HitsLeftText,
+            HitsLeftLayout);
+        ConfigureDiscoveryGuidanceText(
+            context.PuzzleFeedbackText,
+            PuzzleFeedbackLayout);
+        ConfigureDiscoveryGuidanceText(
+            context.PuzzleInstructionText,
+            PuzzleInstructionLayout);
 
         ConfigureTrayLayout(context.InventoryTray);
         ConfigureCountText(context.CountText);
@@ -2133,6 +2220,45 @@ public static class CodebreakerTutorialUIPass
             slotsRoot,
             slot01,
             slot02);
+    }
+
+    private static void ConfigureDiscoveryGuidanceText(
+        TMP_Text text,
+        DiscoveryGuidanceLayout layout)
+    {
+        RectTransform rectTransform =
+            text.GetComponent<RectTransform>();
+        Undo.RecordObject(rectTransform, UndoName);
+        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.anchoredPosition = layout.Position;
+        rectTransform.sizeDelta = layout.Size;
+        rectTransform.localRotation = Quaternion.identity;
+        rectTransform.localScale = Vector3.one;
+
+        Undo.RecordObject(text, UndoName);
+        text.text = layout.PreviewText;
+        text.fontSize = layout.FontSize;
+        text.fontStyle = layout.FontStyle;
+        text.color = layout.Color;
+        text.horizontalAlignment = HorizontalAlignmentOptions.Left;
+        text.verticalAlignment = VerticalAlignmentOptions.Middle;
+        text.enableAutoSizing = false;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.raycastTarget = false;
+
+        if (layout.ValidateRichText)
+        {
+            text.richText = layout.ExpectedRichText;
+        }
+
+        if (layout.ValidateActive)
+        {
+            SetActiveWithUndo(
+                text.gameObject,
+                layout.ExpectedActive);
+        }
     }
 
     private static GameObject CreateOrRepairStatusPanel(
@@ -2863,6 +2989,9 @@ public static class CodebreakerTutorialUIPass
         ValidateStatusColors(
             context,
             errors);
+        ValidateDiscoveryGuidanceAppliedState(
+            context,
+            errors);
         ValidateTrayLayout(context.InventoryTray, errors);
         ValidateCountTextLayout(context, errors);
         ValidateBackdropCleanup(context, errors);
@@ -2964,6 +3093,16 @@ public static class CodebreakerTutorialUIPass
         {
             state.Validate(errors);
         }
+        context.MainCameraState.Validate(errors);
+        context.EventSystemState.Validate(errors);
+
+        foreach (PreservedGameObjectState state in
+            context.DiscoveryPresentationStates)
+        {
+            state.Validate(
+                "Preserved Code Discovery presentation",
+                errors);
+        }
 
         if (context.ReleaseMenuState != null)
         {
@@ -2976,6 +3115,310 @@ public static class CodebreakerTutorialUIPass
                 "Post-build validation failed:\n- " +
                 string.Join("\n- ", errors));
         }
+    }
+
+    private static void ValidateDiscoveryGuidanceAppliedState(
+        TutorialContext context,
+        List<string> errors)
+    {
+        ValidateDiscoveryGuidanceText(
+            context.HitsLeftText,
+            context.HitsLeftParent,
+            HitsLeftLayout,
+            errors);
+        ValidateDiscoveryGuidanceText(
+            context.PuzzleFeedbackText,
+            context.PuzzleFeedbackParent,
+            PuzzleFeedbackLayout,
+            errors);
+        ValidateDiscoveryGuidanceText(
+            context.PuzzleInstructionText,
+            context.PuzzleInstructionParent,
+            PuzzleInstructionLayout,
+            errors);
+    }
+
+    private static void ValidateDiscoveryGuidanceText(
+        TMP_Text text,
+        Transform expectedParent,
+        DiscoveryGuidanceLayout layout,
+        List<string> errors)
+    {
+        string objectLabel =
+            $"LayeredDigitPuzzleController.{layout.Label}";
+
+        if (text == null)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "reference",
+                "assigned TMP_Text",
+                "null");
+            return;
+        }
+
+        RectTransform rectTransform =
+            text.GetComponent<RectTransform>();
+
+        if (rectTransform == null)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "RectTransform",
+                "present",
+                "missing");
+            return;
+        }
+
+        if (text.transform.parent != expectedParent)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "parent",
+                GetTransformPath(expectedParent),
+                GetTransformPath(text.transform.parent));
+        }
+
+        ValidateGuidanceVector2(
+            errors,
+            objectLabel,
+            "anchorMin",
+            new Vector2(0.5f, 0.5f),
+            rectTransform.anchorMin);
+        ValidateGuidanceVector2(
+            errors,
+            objectLabel,
+            "anchorMax",
+            new Vector2(0.5f, 0.5f),
+            rectTransform.anchorMax);
+        ValidateGuidanceVector2(
+            errors,
+            objectLabel,
+            "pivot",
+            new Vector2(0.5f, 0.5f),
+            rectTransform.pivot);
+        ValidateGuidanceVector2(
+            errors,
+            objectLabel,
+            "anchoredPosition",
+            layout.Position,
+            rectTransform.anchoredPosition);
+        ValidateGuidanceVector2(
+            errors,
+            objectLabel,
+            "sizeDelta",
+            layout.Size,
+            rectTransform.sizeDelta);
+        ValidateGuidanceQuaternion(
+            errors,
+            objectLabel,
+            "localRotation",
+            Quaternion.identity,
+            rectTransform.localRotation);
+        ValidateGuidanceVector3(
+            errors,
+            objectLabel,
+            "localScale",
+            Vector3.one,
+            rectTransform.localScale);
+
+        if (!Mathf.Approximately(
+                text.fontSize,
+                layout.FontSize))
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "fontSize",
+                layout.FontSize,
+                text.fontSize);
+        }
+
+        if (text.fontStyle != layout.FontStyle)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "fontStyle",
+                layout.FontStyle,
+                text.fontStyle);
+        }
+
+        if (!ApproximatelyColor(text.color, layout.Color))
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "color",
+                FormatColor(layout.Color),
+                FormatColor(text.color));
+        }
+
+        if (text.horizontalAlignment !=
+            HorizontalAlignmentOptions.Left)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "horizontalAlignment",
+                HorizontalAlignmentOptions.Left,
+                text.horizontalAlignment);
+        }
+
+        if (text.verticalAlignment !=
+            VerticalAlignmentOptions.Middle)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "verticalAlignment",
+                VerticalAlignmentOptions.Middle,
+                text.verticalAlignment);
+        }
+
+        if (text.enableAutoSizing)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "enableAutoSizing",
+                false,
+                true);
+        }
+
+        if (text.overflowMode != TextOverflowModes.Overflow)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "overflowMode",
+                TextOverflowModes.Overflow,
+                text.overflowMode);
+        }
+
+        if (text.raycastTarget)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "raycastTarget",
+                false,
+                true);
+        }
+
+        if (text.text != layout.PreviewText)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "text",
+                layout.PreviewText,
+                text.text);
+        }
+
+        if (layout.ValidateRichText &&
+            text.richText != layout.ExpectedRichText)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "richText",
+                layout.ExpectedRichText,
+                text.richText);
+        }
+
+        if (layout.ValidateActive &&
+            text.gameObject.activeSelf != layout.ExpectedActive)
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                "activeSelf",
+                layout.ExpectedActive,
+                text.gameObject.activeSelf);
+        }
+    }
+
+    private static void ValidateGuidanceVector2(
+        List<string> errors,
+        string objectLabel,
+        string propertyName,
+        Vector2 expected,
+        Vector2 actual)
+    {
+        if (!Mathf.Approximately(expected.x, actual.x) ||
+            !Mathf.Approximately(expected.y, actual.y))
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                propertyName,
+                expected,
+                actual);
+        }
+    }
+
+    private static void ValidateGuidanceVector3(
+        List<string> errors,
+        string objectLabel,
+        string propertyName,
+        Vector3 expected,
+        Vector3 actual)
+    {
+        if (!Mathf.Approximately(expected.x, actual.x) ||
+            !Mathf.Approximately(expected.y, actual.y) ||
+            !Mathf.Approximately(expected.z, actual.z))
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                propertyName,
+                expected,
+                actual);
+        }
+    }
+
+    private static void ValidateGuidanceQuaternion(
+        List<string> errors,
+        string objectLabel,
+        string propertyName,
+        Quaternion expected,
+        Quaternion actual)
+    {
+        if (!Mathf.Approximately(expected.x, actual.x) ||
+            !Mathf.Approximately(expected.y, actual.y) ||
+            !Mathf.Approximately(expected.z, actual.z) ||
+            !Mathf.Approximately(expected.w, actual.w))
+        {
+            AddGuidanceValidationError(
+                errors,
+                objectLabel,
+                propertyName,
+                expected,
+                actual);
+        }
+    }
+
+    private static void AddGuidanceValidationError(
+        List<string> errors,
+        string objectLabel,
+        string propertyName,
+        object expected,
+        object actual)
+    {
+        errors.Add(
+            $"{objectLabel}.{propertyName} expected {expected}; " +
+            $"actual {actual}.");
+    }
+
+    private static string GetTransformPath(Transform transform)
+    {
+        return transform == null
+            ? "<scene root>"
+            : GetHierarchyPath(transform.gameObject);
     }
 
     private static void ValidateObjectReferenceArray<T>(
@@ -3625,6 +4068,61 @@ public static class CodebreakerTutorialUIPass
         return reference;
     }
 
+    private static T[] ReadObjectReferenceArray<T>(
+        Object owner,
+        string propertyName,
+        List<string> errors)
+        where T : Object
+    {
+        SerializedObject serializedObject = new SerializedObject(owner);
+        serializedObject.Update();
+        SerializedProperty property =
+            serializedObject.FindProperty(propertyName);
+
+        if (property == null)
+        {
+            errors.Add(
+                $"{owner.GetType().Name} has no serialized property " +
+                $"{propertyName}.");
+            return Array.Empty<T>();
+        }
+
+        if (!property.isArray)
+        {
+            errors.Add(
+                $"{owner.GetType().Name}.{propertyName} is not an array.");
+            return Array.Empty<T>();
+        }
+
+        T[] references = new T[property.arraySize];
+
+        for (int i = 0; i < property.arraySize; i++)
+        {
+            SerializedProperty element =
+                property.GetArrayElementAtIndex(i);
+
+            if (element.propertyType !=
+                SerializedPropertyType.ObjectReference)
+            {
+                errors.Add(
+                    $"{owner.GetType().Name}.{propertyName}[{i}] is not " +
+                    "an object reference.");
+                continue;
+            }
+
+            references[i] = element.objectReferenceValue as T;
+
+            if (references[i] == null)
+            {
+                errors.Add(
+                    $"{owner.GetType().Name}.{propertyName}[{i}] must " +
+                    $"reference a {typeof(T).Name}.");
+            }
+        }
+
+        return references;
+    }
+
     private static void ValidateGameplayControllerReferences(
         TutorialContext context,
         List<string> errors)
@@ -3742,6 +4240,539 @@ public static class CodebreakerTutorialUIPass
                     text.gameObject.name,
                     errors);
             }
+        }
+    }
+
+    private static void ValidateDiscoveryGuidanceReferences(
+        TutorialContext context,
+        List<string> errors)
+    {
+        AddDiscoveryPreservationObject(
+            context,
+            context.CodeDiscoveryRoot);
+
+        if (context.CodeDiscoveryRoot != null &&
+            context.CodeDiscoveryRoot.scene != context.TargetScene)
+        {
+            errors.Add(
+                "CodebreakerGameController.codeDiscoveryRoot belongs to " +
+                $"{context.CodeDiscoveryRoot.scene.path}; expected " +
+                $"{context.TargetScene.path}.");
+        }
+
+        ValidateGuidanceTextReference(
+            context,
+            context.HitsLeftText,
+            HitsLeftLayout.Label,
+            errors);
+        ValidateGuidanceTextReference(
+            context,
+            context.PuzzleFeedbackText,
+            PuzzleFeedbackLayout.Label,
+            errors);
+        ValidateGuidanceTextReference(
+            context,
+            context.PuzzleInstructionText,
+            PuzzleInstructionLayout.Label,
+            errors);
+
+        TMP_Text[] guidanceTexts =
+        {
+            context.HitsLeftText,
+            context.PuzzleFeedbackText,
+            context.PuzzleInstructionText
+        };
+
+        for (int i = 0; i < guidanceTexts.Length; i++)
+        {
+            if (guidanceTexts[i] == null)
+            {
+                continue;
+            }
+
+            for (int j = i + 1; j < guidanceTexts.Length; j++)
+            {
+                if (guidanceTexts[i] == guidanceTexts[j])
+                {
+                    errors.Add(
+                        "LayeredDigitPuzzleController guidance fields " +
+                        "must reference three distinct TMP objects.");
+                }
+            }
+
+            if (guidanceTexts[i] == context.PuzzleProgressText)
+            {
+                errors.Add(
+                    "LayeredDigitPuzzleController guidance fields must not " +
+                    "share puzzleProgressText.");
+            }
+        }
+
+        context.HitsLeftParent =
+            context.HitsLeftText?.transform.parent;
+        context.PuzzleFeedbackParent =
+            context.PuzzleFeedbackText?.transform.parent;
+        context.PuzzleInstructionParent =
+            context.PuzzleInstructionText?.transform.parent;
+
+        ValidatePreservedDiscoveryText(
+            context,
+            context.PuzzleProgressText,
+            "puzzleProgressText",
+            requireProgressPreview: true,
+            errors);
+        ValidateSignalLayersReference(context, errors);
+        ValidateSegmentPresentationReferences(context, errors);
+        ValidateInteractionBlockerReference(context, errors);
+
+        if (context.MainCamera != null &&
+            context.MainCamera.gameObject.name != "Main Camera")
+        {
+            errors.Add(
+                "The unique scene Camera must be named Main Camera.");
+        }
+    }
+
+    private static void ValidateGuidanceTextReference(
+        TutorialContext context,
+        TMP_Text text,
+        string fieldName,
+        List<string> errors)
+    {
+        string qualifiedName =
+            $"LayeredDigitPuzzleController.{fieldName}";
+
+        if (text == null)
+        {
+            return;
+        }
+
+        if (!(text is TextMeshProUGUI))
+        {
+            errors.Add(
+                $"{qualifiedName} must reference TextMeshProUGUI; found " +
+                $"{text.GetType().Name}.");
+        }
+
+        if (text.GetComponent<RectTransform>() == null)
+        {
+            errors.Add(
+                $"{qualifiedName} is missing a RectTransform at " +
+                $"{GetHierarchyPath(text.gameObject)}.");
+        }
+
+        if (text.gameObject.scene != context.TargetScene)
+        {
+            errors.Add(
+                $"{qualifiedName} belongs to scene " +
+                $"{text.gameObject.scene.path}; expected " +
+                $"{context.TargetScene.path}.");
+        }
+
+        if (!IsStrictDescendant(
+                text.transform,
+                context.CodeDiscoveryRoot?.transform))
+        {
+            errors.Add(
+                $"{qualifiedName} must be inside the Code Discovery " +
+                $"hierarchy; found at {GetHierarchyPath(text.gameObject)}.");
+        }
+
+        if (IsSameOrDescendant(
+                text.transform,
+                context.ReleaseCanvas?.transform))
+        {
+            errors.Add(
+                $"{qualifiedName} must not be inside " +
+                $"{ReleaseMenuCanvasName}.");
+        }
+
+        if (IsSameOrDescendant(
+                text.transform,
+                context.EquationRoot?.transform) ||
+            IsEquationHudTextReference(context, text))
+        {
+            errors.Add(
+                $"{qualifiedName} must not be shared with the Equation " +
+                "Entry HUD.");
+        }
+    }
+
+    private static void ValidatePreservedDiscoveryText(
+        TutorialContext context,
+        TMP_Text text,
+        string fieldName,
+        bool requireProgressPreview,
+        List<string> errors)
+    {
+        if (text == null)
+        {
+            return;
+        }
+
+        if (text.GetComponent<RectTransform>() == null)
+        {
+            errors.Add(
+                $"LayeredDigitPuzzleController.{fieldName} is missing a " +
+                "RectTransform.");
+        }
+
+        if (text.gameObject.scene != context.TargetScene)
+        {
+            errors.Add(
+                $"LayeredDigitPuzzleController.{fieldName} belongs to " +
+                $"{text.gameObject.scene.path}; expected " +
+                $"{context.TargetScene.path}.");
+        }
+
+        if (!IsStrictDescendant(
+                text.transform,
+                context.CodeDiscoveryRoot?.transform))
+        {
+            errors.Add(
+                $"LayeredDigitPuzzleController.{fieldName} must remain " +
+                "inside the Code Discovery hierarchy.");
+        }
+
+        if (requireProgressPreview &&
+            text.text != "DIGIT 1 / 5")
+        {
+            errors.Add(
+                "LayeredDigitPuzzleController.puzzleProgressText preview " +
+                $"must be DIGIT 1 / 5; found {text.text}.");
+        }
+
+        AddDiscoveryPreservationObject(context, text.gameObject);
+    }
+
+    private static void ValidateSignalLayersReference(
+        TutorialContext context,
+        List<string> errors)
+    {
+        if (context.CodeDiscoveryRoot == null)
+        {
+            return;
+        }
+
+        List<TMP_Text> matches = new List<TMP_Text>();
+
+        foreach (TMP_Text text in
+            context.CodeDiscoveryRoot
+                .GetComponentsInChildren<TMP_Text>(true))
+        {
+            if (text.text == "SIGNAL LAYERS")
+            {
+                matches.Add(text);
+            }
+        }
+
+        if (matches.Count != 1)
+        {
+            errors.Add(
+                "Code Discovery must contain exactly one TMP object whose " +
+                $"text is SIGNAL LAYERS; found {matches.Count}.");
+            return;
+        }
+
+        context.SignalLayersText = matches[0];
+
+        ValidateDiscoveryRectObject(
+            context,
+            context.SignalLayersText.gameObject,
+            "SIGNAL LAYERS",
+            context.CodeDiscoveryRoot.transform,
+            errors);
+
+        AddDiscoveryPreservationObject(
+            context,
+            context.SignalLayersText.gameObject);
+    }
+
+    private static void ValidateSegmentPresentationReferences(
+        TutorialContext context,
+        List<string> errors)
+    {
+        if (context.SegmentViews == null ||
+            context.SegmentViews.Length != 7)
+        {
+            int actualCount = context.SegmentViews?.Length ?? 0;
+            errors.Add(
+                "LayeredDigitPuzzleController.segmentViews must contain " +
+                $"exactly 7 references; found {actualCount}.");
+            return;
+        }
+
+        bool[] positionsSeen = new bool[7];
+        Transform sharedParent = null;
+        bool sharedParentCaptured = false;
+
+        for (int i = 0; i < context.SegmentViews.Length; i++)
+        {
+            LayeredSegmentStackView view = context.SegmentViews[i];
+
+            if (view == null)
+            {
+                continue;
+            }
+
+            string label =
+                $"LayeredDigitPuzzleController.segmentViews[{i}]";
+            ValidateDiscoveryRectObject(
+                context,
+                view.gameObject,
+                label,
+                context.CodeDiscoveryRoot?.transform,
+                errors);
+            AddDiscoveryPreservationObject(context, view.gameObject);
+
+            int positionIndex = (int)view.Position;
+
+            if (positionIndex < 0 ||
+                positionIndex >= positionsSeen.Length)
+            {
+                errors.Add(
+                    $"{label} has invalid position {view.Position}.");
+            }
+            else if (positionsSeen[positionIndex])
+            {
+                errors.Add(
+                    $"{label} duplicates segment position " +
+                    $"{view.Position}.");
+            }
+            else
+            {
+                positionsSeen[positionIndex] = true;
+            }
+
+            if (!sharedParentCaptured)
+            {
+                sharedParent = view.transform.parent;
+                sharedParentCaptured = true;
+            }
+            else if (view.transform.parent != sharedParent)
+            {
+                errors.Add(
+                    $"{label} must share the same direct parent as every " +
+                    "A-G segment view.");
+            }
+
+            Image segmentImage = ReadObjectReference<Image>(
+                view,
+                "segmentImage",
+                errors);
+            TMP_Text positionLabel = ReadTextReference(
+                view,
+                "positionLabelText",
+                errors);
+            Image[] depthIndicators =
+                ReadObjectReferenceArray<Image>(
+                    view,
+                    "depthIndicators",
+                    errors);
+
+            ValidateSegmentDecoration(
+                context,
+                segmentImage,
+                $"{label}.segmentImage",
+                view.transform,
+                errors);
+            ValidateSegmentDecoration(
+                context,
+                positionLabel,
+                $"{label}.positionLabelText",
+                view.transform,
+                errors);
+
+            for (int depthIndex = 0;
+                depthIndex < depthIndicators.Length;
+                depthIndex++)
+            {
+                ValidateSegmentDecoration(
+                    context,
+                    depthIndicators[depthIndex],
+                    $"{label}.depthIndicators[{depthIndex}]",
+                    view.transform,
+                    errors);
+            }
+        }
+
+        for (int i = 0; i < positionsSeen.Length; i++)
+        {
+            if (!positionsSeen[i])
+            {
+                errors.Add(
+                    "LayeredDigitPuzzleController.segmentViews is missing " +
+                    $"position {(LayeredSegmentPosition)i}.");
+            }
+        }
+
+        context.SharedSegmentParent =
+            sharedParent as RectTransform;
+
+        if (sharedParent == null)
+        {
+            errors.Add(
+                "A-G segment views are missing a shared direct parent.");
+        }
+        else if (context.SharedSegmentParent == null)
+        {
+            errors.Add(
+                $"Shared segment parent " +
+                $"{GetHierarchyPath(sharedParent.gameObject)} is missing " +
+                "a RectTransform.");
+        }
+        else
+        {
+            ValidateDiscoveryRectObject(
+                context,
+                sharedParent.gameObject,
+                "Shared A-G segment parent",
+                context.CodeDiscoveryRoot?.transform,
+                errors,
+                allowSameAsAncestor: true);
+            AddDiscoveryPreservationObject(
+                context,
+                sharedParent.gameObject);
+        }
+    }
+
+    private static void ValidateSegmentDecoration(
+        TutorialContext context,
+        Component component,
+        string label,
+        Transform viewRoot,
+        List<string> errors)
+    {
+        if (component == null)
+        {
+            return;
+        }
+
+        GameObject gameObject = component.gameObject;
+        ValidateDiscoveryRectObject(
+            context,
+            gameObject,
+            label,
+            viewRoot,
+            errors,
+            allowSameAsAncestor: true);
+        AddDiscoveryPreservationObject(context, gameObject);
+    }
+
+    private static void ValidateInteractionBlockerReference(
+        TutorialContext context,
+        List<string> errors)
+    {
+        if (context.InteractionBlocker == null)
+        {
+            return;
+        }
+
+        ValidateDiscoveryRectObject(
+            context,
+            context.InteractionBlocker,
+            "LayeredDigitPuzzleController.interactionBlocker",
+            context.CodeDiscoveryRoot?.transform,
+            errors);
+        AddDiscoveryPreservationObject(
+            context,
+            context.InteractionBlocker);
+    }
+
+    private static void ValidateDiscoveryRectObject(
+        TutorialContext context,
+        GameObject gameObject,
+        string label,
+        Transform requiredAncestor,
+        List<string> errors,
+        bool allowSameAsAncestor = false)
+    {
+        if (gameObject == null)
+        {
+            return;
+        }
+
+        if (gameObject.scene != context.TargetScene)
+        {
+            errors.Add(
+                $"{label} belongs to {gameObject.scene.path}; expected " +
+                $"{context.TargetScene.path}.");
+        }
+
+        bool validHierarchy = allowSameAsAncestor
+            ? IsSameOrDescendant(gameObject.transform, requiredAncestor)
+            : IsStrictDescendant(gameObject.transform, requiredAncestor);
+
+        if (!validHierarchy)
+        {
+            errors.Add(
+                $"{label} is outside its required hierarchy at " +
+                $"{GetHierarchyPath(gameObject)}.");
+        }
+
+        if (gameObject.GetComponent<RectTransform>() == null)
+        {
+            errors.Add(
+                $"{label} is missing a RectTransform at " +
+                $"{GetHierarchyPath(gameObject)}.");
+        }
+    }
+
+    private static bool IsEquationHudTextReference(
+        TutorialContext context,
+        TMP_Text text)
+    {
+        TMP_Text[] equationTexts =
+        {
+            context.EntryProgressText,
+            context.TargetEquationText,
+            context.CurrentValuesText,
+            context.AcceptedDigitsText,
+            context.FeedbackText,
+            context.EquationInstructionText,
+            context.SerializedEquationOperatorText,
+            context.SerializedEquationReadyText,
+            context.SerializedBufferFeedbackText
+        };
+
+        foreach (TMP_Text equationText in equationTexts)
+        {
+            if (text == equationText)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsStrictDescendant(
+        Transform child,
+        Transform ancestor)
+    {
+        return child != null &&
+            ancestor != null &&
+            child != ancestor &&
+            child.IsChildOf(ancestor);
+    }
+
+    private static bool IsSameOrDescendant(
+        Transform child,
+        Transform ancestor)
+    {
+        return child != null &&
+            ancestor != null &&
+            (child == ancestor || child.IsChildOf(ancestor));
+    }
+
+    private static void AddDiscoveryPreservationObject(
+        TutorialContext context,
+        GameObject gameObject)
+    {
+        if (gameObject != null &&
+            !context.DiscoveryObjectsToPreserve.Contains(gameObject))
+        {
+            context.DiscoveryObjectsToPreserve.Add(gameObject);
         }
     }
 
@@ -6818,6 +7849,8 @@ public static class CodebreakerTutorialUIPass
         public CodebreakerGameController SerializedPuzzleGameController;
         public GlobalBombTimer GlobalTimer;
         public GlobalBombTimer SerializedGlobalTimer;
+        public Camera MainCamera;
+        public EventSystem EventSystem;
         public CodebreakerHUD Hud;
         public CodebreakerHUD SerializedHud;
         public CodeSequenceDisplay CodeSequenceDisplay;
@@ -6842,6 +7875,10 @@ public static class CodebreakerTutorialUIPass
         public PreservedGameObjectState GlobalTimerState;
         public PreservedGameObjectState CodeSequenceControllerState;
         public PreservedHierarchyState[] GlobalHudStates;
+        public PreservedHierarchyState MainCameraState;
+        public PreservedHierarchyState EventSystemState;
+        public PreservedGameObjectState[]
+            DiscoveryPresentationStates;
         public CodebreakerEquationHUD EquationHud;
         public LayeredDigitPuzzleController PuzzleController;
         public SegmentInventoryTray InventoryTray;
@@ -6881,6 +7918,17 @@ public static class CodebreakerTutorialUIPass
         public TMP_Text HitsLeftText;
         public TMP_Text PuzzleInstructionText;
         public TMP_Text PuzzleFeedbackText;
+        public Transform HitsLeftParent;
+        public Transform PuzzleInstructionParent;
+        public Transform PuzzleFeedbackParent;
+        public TMP_Text SignalLayersText;
+        public GameObject InteractionBlocker;
+        public LayeredSegmentStackView[] SegmentViews =
+            Array.Empty<LayeredSegmentStackView>();
+        public RectTransform SharedSegmentParent;
+        public readonly List<GameObject>
+            DiscoveryObjectsToPreserve =
+                new List<GameObject>();
         public TMP_Text TimerText;
         public TMP_Text PhaseText;
         public TMP_Text StatusText;
@@ -7101,6 +8149,47 @@ public static class CodebreakerTutorialUIPass
                         $"{hierarchyPath} changed.");
                 }
             }
+        }
+    }
+
+    private readonly struct DiscoveryGuidanceLayout
+    {
+        public string Label { get; }
+        public Vector2 Position { get; }
+        public Vector2 Size { get; }
+        public float FontSize { get; }
+        public FontStyles FontStyle { get; }
+        public Color Color { get; }
+        public string PreviewText { get; }
+        public bool ValidateRichText { get; }
+        public bool ExpectedRichText { get; }
+        public bool ValidateActive { get; }
+        public bool ExpectedActive { get; }
+
+        public DiscoveryGuidanceLayout(
+            string label,
+            Vector2 position,
+            Vector2 size,
+            float fontSize,
+            FontStyles fontStyle,
+            Color color,
+            string previewText,
+            bool validateRichText,
+            bool expectedRichText,
+            bool validateActive,
+            bool expectedActive)
+        {
+            Label = label;
+            Position = position;
+            Size = size;
+            FontSize = fontSize;
+            FontStyle = fontStyle;
+            Color = color;
+            PreviewText = previewText;
+            ValidateRichText = validateRichText;
+            ExpectedRichText = expectedRichText;
+            ValidateActive = validateActive;
+            ExpectedActive = expectedActive;
         }
     }
 
