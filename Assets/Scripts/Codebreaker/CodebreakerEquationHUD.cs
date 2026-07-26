@@ -5,8 +5,8 @@ using UnityEngine;
 public class CodebreakerEquationHUD : MonoBehaviour
 {
     private const string Instruction =
-        "DRAG SEGMENTS BETWEEN A, B, AND THE TRAY\n" +
-        "PRESS SPACE TO SUBMIT";
+        "MOVE SEGMENTS BETWEEN THE TWO DISPLAYS AND BUFFER\n" +
+        "MAKE THE EQUATION TRUE, THEN PRESS SPACE";
 
     [Header("Text")]
     [SerializeField] private TMP_Text entryProgressText;
@@ -38,7 +38,7 @@ public class CodebreakerEquationHUD : MonoBehaviour
     {
         if (targetEquationText != null)
         {
-            targetEquationText.text = $"A + B = {targetDigit}";
+            targetEquationText.text = $"= {targetDigit}";
         }
     }
 
@@ -59,7 +59,7 @@ public class CodebreakerEquationHUD : MonoBehaviour
         string renderedTotal =
             validA && validB ? (valueA + valueB).ToString() : "?";
         currentValuesText.text =
-            $"A {renderedA} + B {renderedB} = {renderedTotal}";
+            $"CURRENT  A {renderedA} + B {renderedB} = {renderedTotal}";
     }
 
     public void SetAcceptedDigits(
