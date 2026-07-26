@@ -162,14 +162,17 @@ public class CodebreakerGameController : MonoBehaviour
 
     public void SetGameplayPaused(bool paused)
     {
-        if (IsGameplayPaused == paused)
-        {
-            return;
-        }
-
+        bool pauseStateChanged = IsGameplayPaused != paused;
         IsGameplayPaused = paused;
-        IsGameplayInputBlocked = paused;
-        GameplayPauseChanged?.Invoke(paused);
+        IsGameplayInputBlocked =
+            paused ||
+            IsTerminalState ||
+            !configurationValid;
+
+        if (pauseStateChanged)
+        {
+            GameplayPauseChanged?.Invoke(paused);
+        }
     }
 
     public bool RevealNextCodeDigitForDebug()
@@ -442,14 +445,24 @@ public class CodebreakerGameController : MonoBehaviour
 
     private void HandleDebugControls()
     {
-        if (IsGameplayInputBlocked)
+        Keyboard keyboard = Keyboard.current;
+
+        if (keyboard == null)
         {
             return;
         }
 
-        Keyboard keyboard = Keyboard.current;
+        if (IsTerminalState)
+        {
+            if (keyboard.rKey.wasPressedThisFrame)
+            {
+                RestartLevel();
+            }
 
-        if (keyboard == null)
+            return;
+        }
+
+        if (IsGameplayInputBlocked)
         {
             return;
         }

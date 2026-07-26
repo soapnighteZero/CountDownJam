@@ -60,6 +60,11 @@ public class CodebreakerMenuController : MonoBehaviour
             return;
         }
 
+        if (gameController == null || gameController.IsTerminalState)
+        {
+            return;
+        }
+
         if (mainMenuRoot.activeSelf || !HasGameStarted)
         {
             return;
@@ -108,6 +113,7 @@ public class CodebreakerMenuController : MonoBehaviour
         if (!referencesValid ||
             !HasGameStarted ||
             mainMenuRoot.activeSelf ||
+            gameController.IsTerminalState ||
             IsPaused)
         {
             return;
