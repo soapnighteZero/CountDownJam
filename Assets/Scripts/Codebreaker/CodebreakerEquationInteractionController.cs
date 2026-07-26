@@ -19,6 +19,7 @@ public class CodebreakerEquationInteractionController : MonoBehaviour
 
     public event Action BoardChanged;
     public event Action DragStateChanged;
+    public event Action TrayFullRejected;
 
     private void Awake()
     {
@@ -86,7 +87,11 @@ public class CodebreakerEquationInteractionController : MonoBehaviour
 
         if (dragFromInventory)
         {
-            inventory?.Add(1);
+            if (!TryRestoreInventorySegment("cancelling inventory drag"))
+            {
+                return;
+            }
+
             restoredBoard = true;
         }
         else if (dragOrigin != null && !dragOrigin.IsActive)
@@ -148,7 +153,8 @@ public class CodebreakerEquationInteractionController : MonoBehaviour
 
             if (dragGhost == null)
             {
-                inventory.Add(1);
+                TryRestoreInventorySegment(
+                    "restoring after inventory drag ghost creation failed");
                 return;
             }
 
@@ -231,8 +237,14 @@ public class CodebreakerEquationInteractionController : MonoBehaviour
                 return;
             }
 
-            inventory.Add(1);
-            FinishDrag(true);
+            if (inventory.TryAdd(1))
+            {
+                FinishDrag(true);
+                return;
+            }
+
+            CancelCurrentDrag();
+            TrayFullRejected?.Invoke();
             return;
         }
 
@@ -402,5 +414,19 @@ public class CodebreakerEquationInteractionController : MonoBehaviour
         {
             DestroyImmediate(target);
         }
+    }
+
+    private bool TryRestoreInventorySegment(string operation)
+    {
+        if (inventory != null && inventory.TryAdd(1))
+        {
+            return true;
+        }
+
+        Debug.LogError(
+            "Segment conservation error: failed to restore an in-flight " +
+            $"segment to the inventory while {operation}.",
+            this);
+        return false;
     }
 }

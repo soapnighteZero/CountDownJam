@@ -33,6 +33,7 @@ public class SegmentInventoryTray : MonoBehaviour
         }
 
         inventory.CountChanged += Refresh;
+        inventory.CapacityChanged += Refresh;
         EnsureTokenPool();
         Refresh(inventory.StoredSegments);
     }
@@ -70,8 +71,9 @@ public class SegmentInventoryTray : MonoBehaviour
         }
     }
 
-    private void Refresh(int storedCount)
+    private void Refresh(int ignoredValue)
     {
+        int storedCount = inventory.StoredSegments;
         int visibleCount =
             Mathf.Min(Mathf.Max(0, storedCount), tokens.Count);
 
@@ -82,7 +84,8 @@ public class SegmentInventoryTray : MonoBehaviour
 
         if (countText != null)
         {
-            countText.text = $"SPARE SEGMENTS  {storedCount}";
+            countText.text =
+                $"BUFFER {storedCount} / {inventory.Capacity}";
         }
     }
 
@@ -91,6 +94,7 @@ public class SegmentInventoryTray : MonoBehaviour
         if (inventory != null)
         {
             inventory.CountChanged -= Refresh;
+            inventory.CapacityChanged -= Refresh;
         }
     }
 }

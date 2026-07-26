@@ -26,6 +26,7 @@ public class CodebreakerEquationEntryController : MonoBehaviour
     [SerializeField] private int startingDigitA = 3;
     [SerializeField] private int startingDigitB = 8;
     [SerializeField] private int totalPhysicalSegments = 12;
+    [SerializeField, Min(1)] private int trayCapacity = 2;
     [SerializeField] private float successAdvanceDelaySeconds = 0.6f;
 
     private readonly List<int> targetDigits = new List<int>();
@@ -120,6 +121,7 @@ public class CodebreakerEquationEntryController : MonoBehaviour
         displayB.gameObject.SetActive(true);
         displayA.SetDigit(startingDigitA);
         displayB.SetDigit(startingDigitB);
+        sharedInventory.SetCapacity(trayCapacity);
         sharedInventory.SetCount(0);
         RefreshHud();
 
@@ -149,7 +151,12 @@ public class CodebreakerEquationEntryController : MonoBehaviour
         acceptedDigits.Clear();
         targetDigits.Clear();
 
-        sharedInventory?.SetCount(0);
+        if (sharedInventory != null)
+        {
+            sharedInventory.SetCapacity(trayCapacity);
+            sharedInventory.SetCount(0);
+        }
+
         equationWorldRoot?.SetActive(false);
 
         if (equationHUD != null)
@@ -252,6 +259,23 @@ public class CodebreakerEquationEntryController : MonoBehaviour
             isValid = false;
         }
 
+        if (trayCapacity < 1)
+        {
+            Debug.LogError(
+                $"Codebreaker equation trayCapacity must be at least 1; " +
+                $"received {trayCapacity}.",
+                this);
+            isValid = false;
+        }
+        else if (trayCapacity > totalPhysicalSegments)
+        {
+            Debug.LogError(
+                $"Codebreaker equation trayCapacity {trayCapacity} must not " +
+                $"exceed totalPhysicalSegments {totalPhysicalSegments}.",
+                this);
+            isValid = false;
+        }
+
         if (!IsDigit(startingDigitA) || !IsDigit(startingDigitB))
         {
             Debug.LogError(
@@ -324,12 +348,14 @@ public class CodebreakerEquationEntryController : MonoBehaviour
 
                 if (!CodebreakerEquationMathUtility.HasSolution(
                     targetDigit,
-                    totalPhysicalSegments))
+                    totalPhysicalSegments,
+                    trayCapacity))
                 {
                     Debug.LogError(
                         $"Codebreaker target digit {targetDigit} at index " +
                         $"{i} has no A+B solution with " +
-                        $"{totalPhysicalSegments} physical segments.",
+                        $"{totalPhysicalSegments} physical segments and " +
+                        $"tray capacity {trayCapacity}.",
                         this);
                     isValid = false;
                 }
@@ -566,6 +592,19 @@ public class CodebreakerEquationEntryController : MonoBehaviour
         }
     }
 
+    private void HandleTrayFullRejected()
+    {
+        if (IsEntryActive &&
+            !IsTransitioning &&
+            !IsComplete &&
+            gameController != null &&
+            !gameController.IsTerminalState)
+        {
+            equationHUD?.SetFeedback(
+                "TRAY FULL\nREMOVE THE STORED SEGMENT FIRST");
+        }
+    }
+
     private void HandlePhaseChanged(CodebreakerPhase phase)
     {
         switch (phase)
@@ -646,6 +685,7 @@ public class CodebreakerEquationEntryController : MonoBehaviour
         gameController.PhaseChanged += HandlePhaseChanged;
         gameController.LevelStarted += HandleLevelStarted;
         interactionController.BoardChanged += HandleBoardChanged;
+        interactionController.TrayFullRejected += HandleTrayFullRejected;
         eventsSubscribed = true;
     }
 
@@ -665,6 +705,8 @@ public class CodebreakerEquationEntryController : MonoBehaviour
         if (interactionController != null)
         {
             interactionController.BoardChanged -= HandleBoardChanged;
+            interactionController.TrayFullRejected -=
+                HandleTrayFullRejected;
         }
 
         eventsSubscribed = false;

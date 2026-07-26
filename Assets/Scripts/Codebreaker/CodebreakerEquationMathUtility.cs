@@ -45,11 +45,35 @@ public static class CodebreakerEquationMathUtility
         return FindSolutions(targetDigit, availableSegmentCount).Count > 0;
     }
 
+    public static bool HasSolution(
+        int targetDigit,
+        int availableSegmentCount,
+        int trayCapacity)
+    {
+        return FindSolutions(
+            targetDigit,
+            availableSegmentCount,
+            trayCapacity).Count > 0;
+    }
+
     public static IReadOnlyList<Vector2Int> FindSolutions(
         int targetDigit,
         int availableSegmentCount)
     {
-        if (!IsDigit(targetDigit) || availableSegmentCount < 0)
+        return FindSolutions(
+            targetDigit,
+            availableSegmentCount,
+            availableSegmentCount);
+    }
+
+    public static IReadOnlyList<Vector2Int> FindSolutions(
+        int targetDigit,
+        int availableSegmentCount,
+        int trayCapacity)
+    {
+        if (!IsDigit(targetDigit) ||
+            availableSegmentCount < 0 ||
+            trayCapacity < 0)
         {
             return Array.Empty<Vector2Int>();
         }
@@ -60,9 +84,24 @@ public static class CodebreakerEquationMathUtility
         {
             for (int digitB = 0; digitB <= 9; digitB++)
             {
-                if (!IsValidEquation(digitA, digitB, targetDigit) ||
-                    GetRequiredSegmentCount(digitA, digitB) >
-                    availableSegmentCount)
+                if (!IsValidEquation(digitA, digitB, targetDigit))
+                {
+                    continue;
+                }
+
+                int displaySegmentCount =
+                    GetRequiredSegmentCount(digitA, digitB);
+
+                if (displaySegmentCount > availableSegmentCount)
+                {
+                    continue;
+                }
+
+                int traySegmentCount =
+                    availableSegmentCount - displaySegmentCount;
+
+                if (traySegmentCount < 0 ||
+                    traySegmentCount > trayCapacity)
                 {
                     continue;
                 }
