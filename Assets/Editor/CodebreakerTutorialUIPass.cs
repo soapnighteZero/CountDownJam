@@ -6,6 +6,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 public static class CodebreakerTutorialUIPass
@@ -32,6 +33,8 @@ public static class CodebreakerTutorialUIPass
         "Codebreaker Bomb Background";
     private const string BombBackgroundUndoName =
         "Install Codebreaker Bomb Background";
+    private const string EquationStatusPanelName =
+        "EquationStatusPanel";
     private const string PhaseOneInstruction =
         "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
         "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
@@ -39,6 +42,7 @@ public static class CodebreakerTutorialUIPass
     private const string SuccessReport =
         "FINAL EQUATION ENTRY UI CLEANUP BUILT\n\n" +
         "Equation hierarchy refined\n" +
+        "Equation status module polished\n" +
         "Buffer backdrop and token backgrounds hidden\n" +
         "Two segment-shaped Buffer slots rebuilt\n" +
         "Buffer count label clarified\n" +
@@ -99,6 +103,56 @@ public static class CodebreakerTutorialUIPass
             new Vector2(0f, -365f),
             new Vector2(900f, 42f),
             18f);
+    private static readonly Vector2 EquationStatusPanelPosition =
+        new Vector2(-610f, 10f);
+    private static readonly Vector2 EquationStatusPanelSize =
+        new Vector2(520f, 210f);
+    private static readonly Color EquationStatusPanelColor =
+        new Color(0.015f, 0.035f, 0.055f, 0.76f);
+    private static readonly Color EntryProgressColor =
+        new Color(0.30f, 0.88f, 1f, 1f);
+    private static readonly Color CurrentValuesColor =
+        new Color(0.92f, 0.97f, 1f, 1f);
+    private static readonly Color AcceptedDigitsColor =
+        new Color(0.55f, 0.68f, 0.76f, 1f);
+    private static readonly Color OrdinaryFeedbackColor =
+        new Color(1f, 0.68f, 0.28f, 1f);
+    private static readonly StatusTextLayout EntryProgressLayout =
+        new StatusTextLayout(
+            "entryProgressText",
+            "DIGIT 1 / 5",
+            new Vector2(-610f, 70f),
+            new Vector2(450f, 34f),
+            22f,
+            FontStyles.Bold,
+            EntryProgressColor);
+    private static readonly StatusTextLayout CurrentValuesLayout =
+        new StatusTextLayout(
+            "currentValuesText",
+            "A 3  +  B 8  =  11",
+            new Vector2(-610f, 18f),
+            new Vector2(450f, 46f),
+            28f,
+            FontStyles.Bold,
+            CurrentValuesColor);
+    private static readonly StatusTextLayout AcceptedDigitsLayout =
+        new StatusTextLayout(
+            "acceptedDigitsText",
+            "ENTERED  -  -  -  -  -",
+            new Vector2(-610f, -34f),
+            new Vector2(450f, 34f),
+            20f,
+            FontStyles.Normal,
+            AcceptedDigitsColor);
+    private static readonly StatusTextLayout FeedbackLayout =
+        new StatusTextLayout(
+            "feedbackText",
+            string.Empty,
+            new Vector2(-610f, -76f),
+            new Vector2(450f, 34f),
+            18f,
+            FontStyles.Normal,
+            OrdinaryFeedbackColor);
 
     [MenuItem(MenuPath)]
     private static void BuildTutorialUiPass()
@@ -1217,6 +1271,18 @@ public static class CodebreakerTutorialUIPass
                 targetScene,
                 "EquationEntryRoot",
                 errors),
+            DisplayA = FindUniqueNamed(
+                targetScene,
+                "Display_A",
+                errors),
+            DisplayB = FindUniqueNamed(
+                targetScene,
+                "Display_B",
+                errors),
+            BombBackground = FindUniqueNamed(
+                targetScene,
+                BombBackgroundObjectName,
+                errors),
             EquationHud = RequireUniqueComponent<CodebreakerEquationHUD>(
                 targetScene,
                 errors),
@@ -1312,6 +1378,10 @@ public static class CodebreakerTutorialUIPass
             context.SerializedBufferFeedbackText = ReadTextReference(
                 context.EquationHud,
                 "bufferFeedbackText",
+                errors);
+            context.EquationReadyColor = ReadColorValue(
+                context.EquationHud,
+                "equationReadyColor",
                 errors);
         }
 
@@ -1619,6 +1689,16 @@ public static class CodebreakerTutorialUIPass
             "bufferFeedbackText",
             errors);
 
+        context.EquationStatusPanel = FindOptionalUniqueNamed(
+            targetScene,
+            EquationStatusPanelName,
+            errors);
+        ValidateStatusPanelBeforeRepair(
+            context.EquationStatusPanel,
+            context.EquationRoot,
+            targetScene,
+            errors);
+
         context.BufferCapacitySlotsRoot = FindOptionalUniqueNamed(
             targetScene,
             "BufferCapacitySlotsRoot",
@@ -1646,6 +1726,53 @@ public static class CodebreakerTutorialUIPass
                 context.EquationRoot,
                 "EquationBLabelText",
                 errors);
+        }
+
+        if (errors.Count == 0)
+        {
+            context.BombBackgroundState =
+                new PreservedHierarchyState(
+                    context.BombBackground,
+                    BombBackgroundObjectName);
+            context.CentralEquationStates =
+                new[]
+                {
+                    new PreservedHierarchyState(
+                        context.DisplayA,
+                        "Display_A"),
+                    new PreservedHierarchyState(
+                        context.DisplayB,
+                        "Display_B"),
+                    new PreservedHierarchyState(
+                        context.TargetEquationText.gameObject,
+                        "targetEquationText"),
+                    new PreservedHierarchyState(
+                        context.EquationPlusText,
+                        PlusLabelLayout.Name),
+                    new PreservedHierarchyState(
+                        context.EquationReadyText,
+                        ReadyTextLayout.Name)
+                };
+            context.BufferPresentationState =
+                new PreservedHierarchyState(
+                    context.InventoryTray.gameObject,
+                    "Buffer presentation");
+            context.SupportUiStates =
+                new[]
+                {
+                    new PreservedHierarchyState(
+                        context.EquationInstructionText.gameObject,
+                        "instructionText"),
+                    new PreservedHierarchyState(
+                        context.BufferFeedbackText,
+                        BufferFeedbackLayout.Name),
+                    new PreservedHierarchyState(
+                        context.PuzzleInstructionText.gameObject,
+                        "puzzleInstructionText")
+                };
+            context.PuzzleControllerState =
+                new PreservedGameObjectState(
+                    context.PuzzleController.gameObject);
         }
 
         return context;
@@ -1734,26 +1861,19 @@ public static class CodebreakerTutorialUIPass
         Undo.RecordObject(context.TargetEquationText, UndoName);
         context.TargetEquationText.fontStyle = FontStyles.Bold;
 
-        ConfigureSupportText(
+        GameObject statusPanel = CreateOrRepairStatusPanel(context);
+        ConfigureStatusText(
             context.EntryProgressText,
-            new Vector2(-690f, 85f),
-            new Vector2(500f, 36f),
-            20f);
-        ConfigureSupportText(
+            EntryProgressLayout);
+        ConfigureStatusText(
             context.CurrentValuesText,
-            new Vector2(-690f, 45f),
-            new Vector2(540f, 36f),
-            19f);
-        ConfigureSupportText(
+            CurrentValuesLayout);
+        ConfigureStatusText(
             context.AcceptedDigitsText,
-            new Vector2(-690f, 5f),
-            new Vector2(500f, 36f),
-            19f);
-        ConfigureSupportText(
+            AcceptedDigitsLayout);
+        ConfigureStatusText(
             context.FeedbackText,
-            new Vector2(-690f, -38f),
-            new Vector2(550f, 48f),
-            18f);
+            FeedbackLayout);
 
         ConfigureText(
             context.EquationInstructionText.GetComponent<RectTransform>(),
@@ -1810,12 +1930,89 @@ public static class CodebreakerTutorialUIPass
             bufferFeedbackText);
         ValidateAppliedState(
             context,
+            statusPanel,
             plusObject,
             readyObject,
             bufferFeedbackObject,
             slotsRoot,
             slot01,
             slot02);
+    }
+
+    private static GameObject CreateOrRepairStatusPanel(
+        TutorialContext context)
+    {
+        GameObject panel = context.EquationStatusPanel;
+
+        if (panel == null)
+        {
+            panel = new GameObject(
+                EquationStatusPanelName,
+                typeof(RectTransform));
+            Undo.RegisterCreatedObjectUndo(panel, UndoName);
+        }
+
+        if (panel.transform.parent != context.EquationRoot.transform)
+        {
+            Undo.SetTransformParent(
+                panel.transform,
+                context.EquationRoot.transform,
+                UndoName);
+        }
+
+        CanvasRenderer[] canvasRenderers =
+            panel.GetComponents<CanvasRenderer>();
+
+        if (canvasRenderers.Length == 0)
+        {
+            Undo.AddComponent<CanvasRenderer>(panel);
+        }
+
+        Image[] images = panel.GetComponents<Image>();
+
+        if (images.Length == 0)
+        {
+            Undo.AddComponent<Image>(panel);
+        }
+
+        canvasRenderers = panel.GetComponents<CanvasRenderer>();
+
+        for (int i = 1; i < canvasRenderers.Length; i++)
+        {
+            Undo.DestroyObjectImmediate(canvasRenderers[i]);
+        }
+
+        images = panel.GetComponents<Image>();
+
+        for (int i = 1; i < images.Length; i++)
+        {
+            Undo.DestroyObjectImmediate(images[i]);
+        }
+
+        RectTransform rectTransform =
+            panel.GetComponent<RectTransform>();
+        Undo.RecordObject(rectTransform, UndoName);
+        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.anchoredPosition =
+            EquationStatusPanelPosition;
+        rectTransform.sizeDelta = EquationStatusPanelSize;
+        rectTransform.localRotation = Quaternion.identity;
+        rectTransform.localScale = Vector3.one;
+        rectTransform.SetSiblingIndex(0);
+
+        Image image = panel.GetComponent<Image>();
+        Undo.RecordObject(image, UndoName);
+        image.sprite = null;
+        image.material = null;
+        image.type = Image.Type.Simple;
+        image.color = EquationStatusPanelColor;
+        image.raycastTarget = false;
+        image.maskable = true;
+        image.enabled = true;
+        SetActiveWithUndo(panel, true);
+        return panel;
     }
 
     private static void ConfigureAsNonInteractive(TMP_Text text)
@@ -2303,6 +2500,7 @@ public static class CodebreakerTutorialUIPass
 
     private static void ValidateAppliedState(
         TutorialContext context,
+        GameObject statusPanel,
         GameObject plusObject,
         GameObject readyObject,
         GameObject bufferFeedbackObject,
@@ -2320,6 +2518,11 @@ public static class CodebreakerTutorialUIPass
             context.TargetScene,
             "EquationBLabelText",
             0,
+            errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            EquationStatusPanelName,
+            1,
             errors);
         RequireExactNamedCount(
             context.TargetScene,
@@ -2451,27 +2654,30 @@ public static class CodebreakerTutorialUIPass
 
         ValidateSupportTextLayout(
             context.EntryProgressText,
-            new Vector2(-690f, 85f),
-            new Vector2(500f, 36f),
-            20f,
+            EntryProgressLayout,
             errors);
         ValidateSupportTextLayout(
             context.CurrentValuesText,
-            new Vector2(-690f, 45f),
-            new Vector2(540f, 36f),
-            19f,
+            CurrentValuesLayout,
             errors);
         ValidateSupportTextLayout(
             context.AcceptedDigitsText,
-            new Vector2(-690f, 5f),
-            new Vector2(500f, 36f),
-            19f,
+            AcceptedDigitsLayout,
             errors);
         ValidateSupportTextLayout(
             context.FeedbackText,
-            new Vector2(-690f, -38f),
-            new Vector2(550f, 48f),
-            18f,
+            FeedbackLayout,
+            errors);
+        ValidateStatusPanelAppliedState(
+            statusPanel,
+            context.EquationRoot,
+            errors);
+        ValidateStatusDrawOrder(
+            statusPanel,
+            context,
+            errors);
+        ValidateStatusColors(
+            context,
             errors);
         ValidateTrayLayout(context.InventoryTray, errors);
         ValidateCountTextLayout(context, errors);
@@ -2493,6 +2699,36 @@ public static class CodebreakerTutorialUIPass
         serializedHud.Update();
         ValidateObjectReference(
             serializedHud,
+            "entryProgressText",
+            context.EntryProgressText,
+            errors);
+        ValidateObjectReference(
+            serializedHud,
+            "targetEquationText",
+            context.TargetEquationText,
+            errors);
+        ValidateObjectReference(
+            serializedHud,
+            "currentValuesText",
+            context.CurrentValuesText,
+            errors);
+        ValidateObjectReference(
+            serializedHud,
+            "acceptedDigitsText",
+            context.AcceptedDigitsText,
+            errors);
+        ValidateObjectReference(
+            serializedHud,
+            "feedbackText",
+            context.FeedbackText,
+            errors);
+        ValidateObjectReference(
+            serializedHud,
+            "instructionText",
+            context.EquationInstructionText,
+            errors);
+        ValidateObjectReference(
+            serializedHud,
             "equationOperatorText",
             plusObject.GetComponent<TMP_Text>(),
             errors);
@@ -2505,6 +2741,26 @@ public static class CodebreakerTutorialUIPass
             serializedHud,
             "bufferFeedbackText",
             bufferFeedbackObject.GetComponent<TMP_Text>(),
+            errors);
+
+        context.BombBackgroundState.Validate(errors);
+
+        foreach (PreservedHierarchyState state in
+            context.CentralEquationStates)
+        {
+            state.Validate(errors);
+        }
+
+        context.BufferPresentationState.Validate(errors);
+
+        foreach (PreservedHierarchyState state in
+            context.SupportUiStates)
+        {
+            state.Validate(errors);
+        }
+
+        context.PuzzleControllerState.Validate(
+            "Gameplay controller",
             errors);
 
         if (errors.Count > 0)
@@ -2547,32 +2803,233 @@ public static class CodebreakerTutorialUIPass
         }
     }
 
+    private static void ValidateStatusPanelAppliedState(
+        GameObject panel,
+        GameObject equationRoot,
+        List<string> errors)
+    {
+        if (panel == null)
+        {
+            errors.Add($"{EquationStatusPanelName} is missing.");
+            return;
+        }
+
+        RectTransform[] rectTransforms =
+            panel.GetComponents<RectTransform>();
+        CanvasRenderer[] canvasRenderers =
+            panel.GetComponents<CanvasRenderer>();
+        Image[] images = panel.GetComponents<Image>();
+
+        if (panel.transform.parent != equationRoot.transform ||
+            !panel.activeSelf ||
+            panel.transform.GetSiblingIndex() != 0)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} hierarchy, active state, or " +
+                "draw order is invalid.");
+        }
+
+        if (rectTransforms.Length != 1)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must have exactly one " +
+                "RectTransform.");
+        }
+        else
+        {
+            RectTransform rectTransform = rectTransforms[0];
+
+            if (rectTransform.anchorMin !=
+                    new Vector2(0.5f, 0.5f) ||
+                rectTransform.anchorMax !=
+                    new Vector2(0.5f, 0.5f) ||
+                rectTransform.pivot != new Vector2(0.5f, 0.5f) ||
+                rectTransform.anchoredPosition !=
+                    EquationStatusPanelPosition ||
+                rectTransform.sizeDelta != EquationStatusPanelSize ||
+                rectTransform.localRotation != Quaternion.identity ||
+                rectTransform.localScale != Vector3.one)
+            {
+                errors.Add(
+                    $"{EquationStatusPanelName} RectTransform is invalid.");
+            }
+        }
+
+        if (canvasRenderers.Length != 1)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must have exactly one " +
+                "CanvasRenderer.");
+        }
+
+        if (images.Length != 1)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must have exactly one Image.");
+        }
+        else
+        {
+            Image image = images[0];
+            SerializedObject serializedImage =
+                new SerializedObject(image);
+            serializedImage.Update();
+            SerializedProperty materialProperty =
+                serializedImage.FindProperty("m_Material");
+
+            if (image.sprite != null ||
+                materialProperty == null ||
+                materialProperty.objectReferenceValue != null ||
+                image.type != Image.Type.Simple ||
+                image.color != EquationStatusPanelColor ||
+                image.raycastTarget ||
+                !image.maskable ||
+                !image.enabled)
+            {
+                errors.Add(
+                    $"{EquationStatusPanelName} Image settings are invalid.");
+            }
+        }
+
+        if (panel.GetComponents<TMP_Text>().Length > 0 ||
+            panel.GetComponents<Button>().Length > 0 ||
+            panel.GetComponents<Selectable>().Length > 0 ||
+            panel
+                .GetComponents<UnityEngine.EventSystems.EventTrigger>()
+                .Length > 0 ||
+            panel.GetComponents<Collider2D>().Length > 0 ||
+            panel.GetComponents<Rigidbody2D>().Length > 0)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} contains a prohibited " +
+                "interaction, text, or physics component.");
+        }
+
+        foreach (MonoBehaviour behaviour in
+            panel.GetComponents<MonoBehaviour>())
+        {
+            if (behaviour == null || !(behaviour is Image))
+            {
+                errors.Add(
+                    $"{EquationStatusPanelName} contains a prohibited " +
+                    "MonoBehaviour.");
+                break;
+            }
+        }
+
+        foreach (Component component in panel.GetComponents<Component>())
+        {
+            if (component == null ||
+                (!(component is RectTransform) &&
+                 !(component is CanvasRenderer) &&
+                 !(component is Image)))
+            {
+                errors.Add(
+                    $"{EquationStatusPanelName} contains an unsupported " +
+                    "component.");
+                break;
+            }
+        }
+    }
+
+    private static void ValidateStatusDrawOrder(
+        GameObject panel,
+        TutorialContext context,
+        List<string> errors)
+    {
+        TMP_Text[] statusTexts =
+        {
+            context.EntryProgressText,
+            context.CurrentValuesText,
+            context.AcceptedDigitsText,
+            context.FeedbackText
+        };
+
+        foreach (TMP_Text text in statusTexts)
+        {
+            Transform directChild =
+                GetDirectChildOfRoot(
+                    text.transform,
+                    context.EquationRoot.transform);
+
+            if (directChild == null ||
+                directChild == panel.transform ||
+                directChild.GetSiblingIndex() <=
+                    panel.transform.GetSiblingIndex())
+            {
+                errors.Add(
+                    $"{text.gameObject.name} must render after " +
+                    $"{EquationStatusPanelName}.");
+            }
+        }
+    }
+
+    private static Transform GetDirectChildOfRoot(
+        Transform descendant,
+        Transform root)
+    {
+        Transform current = descendant;
+
+        while (current != null && current.parent != root)
+        {
+            current = current.parent;
+        }
+
+        return current != null && current.parent == root
+            ? current
+            : null;
+    }
+
+    private static void ValidateStatusColors(
+        TutorialContext context,
+        List<string> errors)
+    {
+        TMP_Text[] statusTexts =
+        {
+            context.EntryProgressText,
+            context.CurrentValuesText,
+            context.AcceptedDigitsText,
+            context.FeedbackText
+        };
+
+        foreach (TMP_Text text in statusTexts)
+        {
+            if (text.color == context.EquationReadyColor)
+            {
+                errors.Add(
+                    $"{text.gameObject.name} must not use " +
+                    "equationReadyColor for static status information.");
+            }
+        }
+    }
+
     private static void ValidateSupportTextLayout(
         TMP_Text text,
-        Vector2 position,
-        Vector2 size,
-        float fontSize,
+        StatusTextLayout layout,
         List<string> errors)
     {
         RectTransform rectTransform =
             text.GetComponent<RectTransform>();
 
-        if (rectTransform.anchoredPosition != position ||
-            rectTransform.sizeDelta != size ||
+        if (rectTransform.anchoredPosition != layout.Position ||
+            rectTransform.sizeDelta != layout.Size ||
             rectTransform.anchorMin != new Vector2(0.5f, 0.5f) ||
             rectTransform.anchorMax != new Vector2(0.5f, 0.5f) ||
             rectTransform.pivot != new Vector2(0.5f, 0.5f) ||
             rectTransform.localScale != Vector3.one ||
             rectTransform.localRotation != Quaternion.identity ||
-            !Mathf.Approximately(text.fontSize, fontSize) ||
+            !Mathf.Approximately(text.fontSize, layout.FontSize) ||
             text.horizontalAlignment != HorizontalAlignmentOptions.Left ||
             text.verticalAlignment != VerticalAlignmentOptions.Middle ||
             text.enableAutoSizing ||
             text.raycastTarget ||
-            text.overflowMode != TextOverflowModes.Overflow)
+            text.overflowMode != TextOverflowModes.Overflow ||
+            text.fontStyle != layout.FontStyle ||
+            text.color != layout.Color ||
+            text.text != layout.Text ||
+            !text.gameObject.activeSelf)
         {
             errors.Add(
-                $"{text.gameObject.name} support-text layout is invalid.");
+                $"{layout.Name} support-text layout is invalid.");
         }
     }
 
@@ -2725,22 +3182,25 @@ public static class CodebreakerTutorialUIPass
         }
     }
 
-    private static void ConfigureSupportText(
+    private static void ConfigureStatusText(
         TMP_Text text,
-        Vector2 position,
-        Vector2 size,
-        float fontSize)
+        StatusTextLayout layout)
     {
         ConfigureText(
             text.GetComponent<RectTransform>(),
             text,
-            position,
-            size,
-            fontSize,
+            layout.Position,
+            layout.Size,
+            layout.FontSize,
             HorizontalAlignmentOptions.Left,
             setVerticalMiddle: true,
-            content: text.text,
+            content: layout.Text,
             setOverflow: true);
+        Undo.RecordObject(text, UndoName);
+        text.fontStyle = layout.FontStyle;
+        text.color = layout.Color;
+        text.raycastTarget = false;
+        SetActiveWithUndo(text.gameObject, true);
     }
 
     private static void ConfigureText(
@@ -2856,6 +3316,34 @@ public static class CodebreakerTutorialUIPass
         return text;
     }
 
+    private static Color ReadColorValue(
+        Object owner,
+        string propertyName,
+        List<string> errors)
+    {
+        SerializedObject serializedObject = new SerializedObject(owner);
+        serializedObject.Update();
+        SerializedProperty property =
+            serializedObject.FindProperty(propertyName);
+
+        if (property == null)
+        {
+            errors.Add(
+                $"{owner.GetType().Name} has no serialized property " +
+                $"{propertyName}.");
+            return default;
+        }
+
+        if (property.propertyType != SerializedPropertyType.Color)
+        {
+            errors.Add(
+                $"{owner.GetType().Name}.{propertyName} is not a color.");
+            return default;
+        }
+
+        return property.colorValue;
+    }
+
     private static T ReadObjectReference<T>(
         Object owner,
         string propertyName,
@@ -2937,6 +3425,98 @@ public static class CodebreakerTutorialUIPass
             errors.Add(
                 $"{objectName} must be a direct child of " +
                 "EquationEntryRoot.");
+        }
+    }
+
+    private static void ValidateStatusPanelBeforeRepair(
+        GameObject panel,
+        GameObject equationRoot,
+        Scene targetScene,
+        List<string> errors)
+    {
+        if (panel == null)
+        {
+            return;
+        }
+
+        if (panel.scene != targetScene)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must belong to " +
+                $"{TargetScenePath}.");
+        }
+
+        if (equationRoot != null &&
+            (panel.transform == equationRoot.transform ||
+             !panel.transform.IsChildOf(equationRoot.transform)))
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must belong to " +
+                "EquationEntryRoot.");
+        }
+
+        if (panel.GetComponents<RectTransform>().Length != 1)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must have exactly one " +
+                "RectTransform before repair.");
+        }
+
+        if (panel.GetComponents<TMP_Text>().Length > 0)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must not contain TMP_Text.");
+        }
+
+        if (panel.GetComponents<Button>().Length > 0 ||
+            panel.GetComponents<Selectable>().Length > 0)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must not contain a Button or " +
+                "Selectable.");
+        }
+
+        if (panel
+                .GetComponents<UnityEngine.EventSystems.EventTrigger>()
+                .Length > 0)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must not contain an " +
+                "EventTrigger.");
+        }
+
+        if (panel.GetComponents<Collider2D>().Length > 0 ||
+            panel.GetComponents<Rigidbody2D>().Length > 0)
+        {
+            errors.Add(
+                $"{EquationStatusPanelName} must not contain 2D physics " +
+                "components.");
+        }
+
+        foreach (MonoBehaviour behaviour in
+            panel.GetComponents<MonoBehaviour>())
+        {
+            if (behaviour == null || !(behaviour is Image))
+            {
+                errors.Add(
+                    $"{EquationStatusPanelName} must not contain custom " +
+                    "MonoBehaviours.");
+                break;
+            }
+        }
+
+        foreach (Component component in panel.GetComponents<Component>())
+        {
+            if (component == null ||
+                (!(component is RectTransform) &&
+                 !(component is CanvasRenderer) &&
+                 !(component is Image)))
+            {
+                errors.Add(
+                    $"{EquationStatusPanelName} must contain only its " +
+                    "RectTransform, CanvasRenderer, and Image.");
+                break;
+            }
         }
     }
 
@@ -3423,6 +4003,14 @@ public static class CodebreakerTutorialUIPass
         public Scene TargetScene;
         public GameObject HudCanvas;
         public GameObject EquationRoot;
+        public GameObject DisplayA;
+        public GameObject DisplayB;
+        public GameObject BombBackground;
+        public PreservedHierarchyState BombBackgroundState;
+        public PreservedHierarchyState[] CentralEquationStates;
+        public PreservedHierarchyState BufferPresentationState;
+        public PreservedHierarchyState[] SupportUiStates;
+        public PreservedGameObjectState PuzzleControllerState;
         public CodebreakerEquationHUD EquationHud;
         public LayeredDigitPuzzleController PuzzleController;
         public SegmentInventoryTray InventoryTray;
@@ -3457,6 +4045,7 @@ public static class CodebreakerTutorialUIPass
         public TMP_Text SerializedEquationOperatorText;
         public TMP_Text SerializedEquationReadyText;
         public TMP_Text SerializedBufferFeedbackText;
+        public Color EquationReadyColor;
         public TMP_Text PuzzleProgressText;
         public TMP_Text HitsLeftText;
         public TMP_Text PuzzleInstructionText;
@@ -3464,11 +4053,218 @@ public static class CodebreakerTutorialUIPass
         public GameObject EquationPlusText;
         public GameObject EquationReadyText;
         public GameObject BufferFeedbackText;
+        public GameObject EquationStatusPanel;
         public GameObject BufferCapacitySlotsRoot;
         public GameObject BufferSlotVisual01;
         public GameObject BufferSlotVisual02;
         public GameObject EquationALabelText;
         public GameObject EquationBLabelText;
+    }
+
+    private sealed class PreservedHierarchyState
+    {
+        private readonly GameObject root;
+        private readonly string label;
+        private readonly PreservedGameObjectState[] objectStates;
+
+        public PreservedHierarchyState(
+            GameObject hierarchyRoot,
+            string stateLabel)
+        {
+            root = hierarchyRoot;
+            label = stateLabel;
+            Transform[] transforms =
+                hierarchyRoot.GetComponentsInChildren<Transform>(true);
+            objectStates =
+                new PreservedGameObjectState[transforms.Length];
+
+            for (int i = 0; i < transforms.Length; i++)
+            {
+                objectStates[i] =
+                    new PreservedGameObjectState(
+                        transforms[i].gameObject);
+            }
+        }
+
+        public void Validate(List<string> errors)
+        {
+            if (root == null)
+            {
+                errors.Add(
+                    $"{label} was removed during the tutorial UI pass.");
+                return;
+            }
+
+            Transform[] currentTransforms =
+                root.GetComponentsInChildren<Transform>(true);
+
+            if (currentTransforms.Length != objectStates.Length)
+            {
+                errors.Add(
+                    $"{label} hierarchy changed during the tutorial UI " +
+                    "pass.");
+            }
+
+            foreach (PreservedGameObjectState state in objectStates)
+            {
+                state.Validate(label, errors);
+            }
+        }
+    }
+
+    private sealed class PreservedGameObjectState
+    {
+        private readonly GameObject gameObject;
+        private readonly string hierarchyPath;
+        private readonly string objectName;
+        private readonly string tag;
+        private readonly int layer;
+        private readonly bool activeSelf;
+        private readonly bool isStatic;
+        private readonly HideFlags hideFlags;
+        private readonly Transform parent;
+        private readonly Vector3 localPosition;
+        private readonly Quaternion localRotation;
+        private readonly Vector3 localScale;
+        private readonly bool isRectTransform;
+        private readonly Vector2 anchorMin;
+        private readonly Vector2 anchorMax;
+        private readonly Vector2 pivot;
+        private readonly Vector3 anchoredPosition3D;
+        private readonly Vector2 sizeDelta;
+        private readonly Vector2 offsetMin;
+        private readonly Vector2 offsetMax;
+        private readonly Component[] components;
+        private readonly string[] serializedComponents;
+
+        public PreservedGameObjectState(GameObject target)
+        {
+            gameObject = target;
+            hierarchyPath = GetHierarchyPath(target);
+            objectName = target.name;
+            tag = target.tag;
+            layer = target.layer;
+            activeSelf = target.activeSelf;
+            isStatic = target.isStatic;
+            hideFlags = target.hideFlags;
+
+            Transform targetTransform = target.transform;
+            parent = targetTransform.parent;
+            localPosition = targetTransform.localPosition;
+            localRotation = targetTransform.localRotation;
+            localScale = targetTransform.localScale;
+            RectTransform rectTransform =
+                targetTransform as RectTransform;
+            isRectTransform = rectTransform != null;
+
+            if (rectTransform != null)
+            {
+                anchorMin = rectTransform.anchorMin;
+                anchorMax = rectTransform.anchorMax;
+                pivot = rectTransform.pivot;
+                anchoredPosition3D =
+                    rectTransform.anchoredPosition3D;
+                sizeDelta = rectTransform.sizeDelta;
+                offsetMin = rectTransform.offsetMin;
+                offsetMax = rectTransform.offsetMax;
+            }
+
+            components = target.GetComponents<Component>();
+            serializedComponents = new string[components.Length];
+
+            for (int i = 0; i < components.Length; i++)
+            {
+                Component component = components[i];
+
+                if (component != null &&
+                    !(component is Transform))
+                {
+                    serializedComponents[i] =
+                        EditorJsonUtility.ToJson(component);
+                }
+            }
+        }
+
+        public void Validate(
+            string stateLabel,
+            List<string> errors)
+        {
+            if (gameObject == null)
+            {
+                errors.Add(
+                    $"{stateLabel} object {hierarchyPath} was removed.");
+                return;
+            }
+
+            Transform currentTransform = gameObject.transform;
+            RectTransform currentRect =
+                currentTransform as RectTransform;
+
+            if (gameObject.name != objectName ||
+                gameObject.tag != tag ||
+                gameObject.layer != layer ||
+                gameObject.activeSelf != activeSelf ||
+                gameObject.isStatic != isStatic ||
+                gameObject.hideFlags != hideFlags ||
+                currentTransform.parent != parent ||
+                currentTransform.localPosition != localPosition ||
+                currentTransform.localRotation != localRotation ||
+                currentTransform.localScale != localScale ||
+                (currentRect != null) != isRectTransform)
+            {
+                errors.Add(
+                    $"{stateLabel} object {hierarchyPath} changed.");
+            }
+
+            if (isRectTransform &&
+                (currentRect.anchorMin != anchorMin ||
+                 currentRect.anchorMax != anchorMax ||
+                 currentRect.pivot != pivot ||
+                 currentRect.anchoredPosition3D !=
+                    anchoredPosition3D ||
+                 currentRect.sizeDelta != sizeDelta ||
+                 currentRect.offsetMin != offsetMin ||
+                 currentRect.offsetMax != offsetMax))
+            {
+                errors.Add(
+                    $"{stateLabel} RectTransform {hierarchyPath} changed.");
+            }
+
+            Component[] currentComponents =
+                gameObject.GetComponents<Component>();
+
+            if (currentComponents.Length != components.Length)
+            {
+                errors.Add(
+                    $"{stateLabel} component structure at " +
+                    $"{hierarchyPath} changed.");
+                return;
+            }
+
+            for (int i = 0; i < components.Length; i++)
+            {
+                if (currentComponents[i] != components[i])
+                {
+                    errors.Add(
+                        $"{stateLabel} component identity at " +
+                        $"{hierarchyPath} changed.");
+                    continue;
+                }
+
+                Component component = currentComponents[i];
+
+                if (component != null &&
+                    !(component is Transform) &&
+                    EditorJsonUtility.ToJson(component) !=
+                        serializedComponents[i])
+                {
+                    errors.Add(
+                        $"{stateLabel} component " +
+                        $"{component.GetType().Name} at " +
+                        $"{hierarchyPath} changed.");
+                }
+            }
+        }
     }
 
     private struct StaticLabelLayout
@@ -3491,6 +4287,35 @@ public static class CodebreakerTutorialUIPass
             Position = position;
             Size = size;
             FontSize = fontSize;
+        }
+    }
+
+    private struct StatusTextLayout
+    {
+        public string Name { get; }
+        public string Text { get; }
+        public Vector2 Position { get; }
+        public Vector2 Size { get; }
+        public float FontSize { get; }
+        public FontStyles FontStyle { get; }
+        public Color Color { get; }
+
+        public StatusTextLayout(
+            string name,
+            string text,
+            Vector2 position,
+            Vector2 size,
+            float fontSize,
+            FontStyles fontStyle,
+            Color color)
+        {
+            Name = name;
+            Text = text;
+            Position = position;
+            Size = size;
+            FontSize = fontSize;
+            FontStyle = fontStyle;
+            Color = color;
         }
     }
 }

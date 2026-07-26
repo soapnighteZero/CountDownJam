@@ -7,6 +7,14 @@ public class CodebreakerEquationHUD : MonoBehaviour
     private const string EquationReadyMessage =
         "<b>EQUATION VALID</b>\n" +
         "<size=18>PRESS SPACE TO SUBMIT</size>";
+    private static readonly Color EntryProgressColor =
+        new Color(0.30f, 0.88f, 1f, 1f);
+    private static readonly Color CurrentValuesColor =
+        new Color(0.92f, 0.97f, 1f, 1f);
+    private static readonly Color AcceptedDigitsColor =
+        new Color(0.55f, 0.68f, 0.76f, 1f);
+    private static readonly Color OrdinaryFeedbackColor =
+        new Color(1f, 0.68f, 0.28f, 1f);
 
     [Header("Text")]
     [SerializeField] private TMP_Text entryProgressText;
@@ -54,7 +62,7 @@ public class CodebreakerEquationHUD : MonoBehaviour
         int safeTotal = Mathf.Max(1, totalDigits);
         int displayedIndex = Mathf.Clamp(currentIndex + 1, 1, safeTotal);
         entryProgressText.text =
-            $"ENTRY DIGIT {displayedIndex} OF {safeTotal}";
+            $"DIGIT {displayedIndex} / {safeTotal}";
     }
 
     public void SetTargetDigit(int targetDigit)
@@ -82,7 +90,7 @@ public class CodebreakerEquationHUD : MonoBehaviour
         string renderedTotal =
             validA && validB ? (valueA + valueB).ToString() : "?";
         currentValuesText.text =
-            $"CURRENT  A {renderedA} + B {renderedB} = {renderedTotal}";
+            $"A {renderedA}  +  B {renderedB}  =  {renderedTotal}";
     }
 
     public void SetAcceptedDigits(
@@ -102,11 +110,11 @@ public class CodebreakerEquationHUD : MonoBehaviour
             renderedDigits[i] =
                 acceptedDigits != null && i < acceptedDigits.Count
                     ? acceptedDigits[i].ToString()
-                    : "_";
+                    : "-";
         }
 
         acceptedDigitsText.text =
-            $"ENTERED  {string.Join(" ", renderedDigits)}";
+            $"ENTERED  {string.Join("  ", renderedDigits)}";
     }
 
     public void SetFeedback(string message)
@@ -219,6 +227,34 @@ public class CodebreakerEquationHUD : MonoBehaviour
             {
                 textObjects[i].raycastTarget = false;
             }
+        }
+
+        if (entryProgressText != null)
+        {
+            entryProgressText.color = EntryProgressColor;
+            entryProgressText.fontStyle = FontStyles.Bold;
+            entryProgressText.raycastTarget = false;
+        }
+
+        if (currentValuesText != null)
+        {
+            currentValuesText.color = CurrentValuesColor;
+            currentValuesText.fontStyle = FontStyles.Bold;
+            currentValuesText.raycastTarget = false;
+        }
+
+        if (acceptedDigitsText != null)
+        {
+            acceptedDigitsText.color = AcceptedDigitsColor;
+            acceptedDigitsText.fontStyle = FontStyles.Normal;
+            acceptedDigitsText.raycastTarget = false;
+        }
+
+        if (feedbackText != null)
+        {
+            feedbackText.color = OrdinaryFeedbackColor;
+            feedbackText.fontStyle = FontStyles.Normal;
+            feedbackText.raycastTarget = false;
         }
 
         if (instructionText != null)
