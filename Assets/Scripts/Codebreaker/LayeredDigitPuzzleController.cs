@@ -568,16 +568,6 @@ public class LayeredDigitPuzzleController : MonoBehaviour
                 $"{levelConfig.TotalDiscoveryHitBudget}.");
         }
 
-        if (string.Equals(
-                levelConfig.LevelId,
-                "prototype-tutorial",
-                StringComparison.Ordinal) &&
-            totalHitBudget != 12)
-        {
-            errors.Add(
-                "Prototype tutorial discovery configs must total 12 " +
-                $"hits, but total {totalHitBudget}.");
-        }
     }
 
     private static void ValidateSolverResult(

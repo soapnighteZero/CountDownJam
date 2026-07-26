@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 public class CodebreakerGameController : MonoBehaviour
 {
     private const string DiscoveryStatus =
-        "RECOVER THE THREE-DIGIT ACCESS CODE";
+        "RECOVER THE ACCESS CODE";
     private const string EquationStatus =
         "ENTER THE RECOVERED CODE THROUGH A + B";
     private const string DefusedResult =

@@ -1063,6 +1063,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: b950b8562ada1474aa173a500717cb15, type: 2}
   - {fileID: 11400000, guid: 62d3ed6e30234ed2ae42a8a93df65d31, type: 2}
   - {fileID: 11400000, guid: c8fc59344768497889c57bb5bb9a8076, type: 2}
+  - {fileID: 11400000, guid: c50f825c15c54f7c8dd208c1ca51ccba, type: 2}
+  - {fileID: 11400000, guid: 9db5d0e71b4342749a93593b83391ca3, type: 2}
   gameController: {fileID: 973911325}
   segmentViews:
   - {fileID: 99623588}

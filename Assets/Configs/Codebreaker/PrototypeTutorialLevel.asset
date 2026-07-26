@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CodebreakerLevelConfig
   levelId: prototype-tutorial
   displayName: Prototype Tutorial
-  expectedCodeDigits: 050000000600000009000000
+  expectedCodeDigits: 0500000006000000090000000800000007000000
   difficulty: 0
-  totalDiscoveryHitBudget: 12
-  estimatedEquationMoveCount: 6
+  totalDiscoveryHitBudget: 20
+  estimatedEquationMoveCount: 8
   extraAuthoredSeconds: 0
   useManualTimeOverride: 0
   manualTimeSeconds: 60

@@ -15,6 +15,12 @@ public static class CodebreakerTutorialUIPass
         "Assets/Scenes/CodebreakerPrototypeScene.unity";
     private const string DialogTitle = "Codebreaker Tutorial UI Pass";
     private const string UndoName = "Build Codebreaker Tutorial UI Pass";
+    private const string FiveDigitWiringMenuPath =
+        "Tools/Codebreaker/Wire Five-Digit Puzzle Configs";
+    private const string FiveDigitWiringDialogTitle =
+        "Codebreaker Five-Digit Wiring";
+    private const string FiveDigitWiringUndoName =
+        "Wire Five-Digit Puzzle Configs";
     private const string PhaseOneInstruction =
         "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
         "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
@@ -28,6 +34,40 @@ public static class CodebreakerTutorialUIPass
         "Buffer-full feedback moved near Buffer\n" +
         "Phase 1 objective hierarchy improved\n" +
         "Gameplay rules preserved";
+    private const string FiveDigitWiringSuccessReport =
+        "FIVE-DIGIT PUZZLE CONFIGS WIRED\n\n" +
+        "Puzzle 1 = 5\n" +
+        "Puzzle 2 = 6\n" +
+        "Puzzle 3 = 9\n" +
+        "Puzzle 4 = 8\n" +
+        "Puzzle 5 = 7";
+
+    private static readonly string[] FiveDigitPuzzleAssetPaths =
+    {
+        "Assets/Configs/Codebreaker/PrototypeLayeredDigit5.asset",
+        "Assets/Configs/Codebreaker/PrototypeLayeredDigit3.asset",
+        "Assets/Configs/Codebreaker/PrototypeLayeredDigit0.asset",
+        "Assets/Configs/Codebreaker/PrototypeLayeredDigit8.asset",
+        "Assets/Configs/Codebreaker/PrototypeLayeredDigit7.asset"
+    };
+
+    private static readonly int[] FiveDigitTargetCodeIndices =
+    {
+        0,
+        1,
+        2,
+        3,
+        4
+    };
+
+    private static readonly int[] FiveDigitExpectedDigits =
+    {
+        5,
+        6,
+        9,
+        8,
+        7
+    };
 
     private static readonly StaticLabelLayout PlusLabelLayout =
         new StaticLabelLayout(
@@ -117,6 +157,317 @@ public static class CodebreakerTutorialUIPass
                 exception.Message,
                 "OK");
         }
+    }
+
+    [MenuItem(FiveDigitWiringMenuPath)]
+    private static void WireFiveDigitPuzzleConfigs()
+    {
+        if (!TryGetFiveDigitWiringTargetScene(
+                out Scene targetScene,
+                out string refusal))
+        {
+            ReportFiveDigitWiringRefusal(refusal);
+            return;
+        }
+
+        List<string> errors = new List<string>();
+        LayeredDigitPuzzleController puzzleController =
+            RequireUniqueComponent<LayeredDigitPuzzleController>(
+                targetScene,
+                errors);
+        LayeredDigitPuzzleConfig[] puzzleConfigs =
+            LoadFiveDigitPuzzleConfigs(errors);
+        SerializedObject serializedController = null;
+
+        if (puzzleController != null)
+        {
+            serializedController = new SerializedObject(puzzleController);
+            serializedController.Update();
+            SerializedProperty puzzleConfigsProperty =
+                serializedController.FindProperty("puzzleConfigs");
+
+            if (puzzleConfigsProperty == null)
+            {
+                errors.Add(
+                    "LayeredDigitPuzzleController has no serialized " +
+                    "puzzleConfigs property.");
+            }
+            else if (!puzzleConfigsProperty.isArray)
+            {
+                errors.Add(
+                    "LayeredDigitPuzzleController.puzzleConfigs must be " +
+                    "an array.");
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            ReportFiveDigitWiringFailures(
+                "FIVE-DIGIT PUZZLE CONFIG VALIDATION FAILED",
+                errors);
+            return;
+        }
+
+        Undo.IncrementCurrentGroup();
+        int undoGroup = Undo.GetCurrentGroup();
+        Undo.SetCurrentGroupName(FiveDigitWiringUndoName);
+        bool mutationStarted = false;
+        bool sceneSaved = false;
+
+        try
+        {
+            Undo.RecordObject(
+                puzzleController,
+                FiveDigitWiringUndoName);
+            mutationStarted = true;
+
+            serializedController.Update();
+            SerializedProperty puzzleConfigsProperty =
+                serializedController.FindProperty("puzzleConfigs");
+            puzzleConfigsProperty.arraySize = 5;
+
+            for (int i = 0; i < puzzleConfigs.Length; i++)
+            {
+                puzzleConfigsProperty
+                    .GetArrayElementAtIndex(i)
+                    .objectReferenceValue = puzzleConfigs[i];
+            }
+
+            serializedController.ApplyModifiedProperties();
+
+            List<string> assignmentErrors = new List<string>();
+            ValidateFiveDigitPuzzleAssignment(
+                serializedController,
+                puzzleConfigs,
+                assignmentErrors);
+
+            if (assignmentErrors.Count > 0)
+            {
+                Undo.RevertAllDownToGroup(undoGroup);
+                mutationStarted = false;
+                ReportFiveDigitWiringFailures(
+                    "FIVE-DIGIT PUZZLE CONFIG ASSIGNMENT FAILED",
+                    assignmentErrors);
+                return;
+            }
+
+            EditorSceneManager.MarkSceneDirty(targetScene);
+
+            if (!EditorSceneManager.SaveScene(
+                    targetScene,
+                    TargetScenePath,
+                    false))
+            {
+                throw new InvalidOperationException(
+                    $"Unity could not save {TargetScenePath}.");
+            }
+
+            sceneSaved = true;
+            Undo.CollapseUndoOperations(undoGroup);
+            Debug.Log(FiveDigitWiringSuccessReport);
+            EditorUtility.DisplayDialog(
+                FiveDigitWiringDialogTitle,
+                FiveDigitWiringSuccessReport,
+                "OK");
+        }
+        catch (Exception exception)
+        {
+            if (mutationStarted && !sceneSaved)
+            {
+                Undo.RevertAllDownToGroup(undoGroup);
+            }
+
+            Debug.LogException(exception);
+            Debug.LogError(
+                "Five-digit puzzle config wiring was not saved: " +
+                exception.Message);
+            EditorUtility.DisplayDialog(
+                FiveDigitWiringDialogTitle,
+                "FIVE-DIGIT PUZZLE CONFIG WIRING FAILED\n\n" +
+                exception.Message,
+                "OK");
+        }
+    }
+
+    private static bool TryGetFiveDigitWiringTargetScene(
+        out Scene targetScene,
+        out string refusal)
+    {
+        targetScene = SceneManager.GetSceneByPath(TargetScenePath);
+
+        if (EditorApplication.isPlaying)
+        {
+            refusal =
+                "Five-digit puzzle wiring cannot run while Unity is in " +
+                "Play Mode.";
+            return false;
+        }
+
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            refusal =
+                "Five-digit puzzle wiring cannot run while Unity is " +
+                "entering Play Mode.";
+            return false;
+        }
+
+        if (!targetScene.IsValid() || !targetScene.isLoaded)
+        {
+            refusal =
+                $"Load {TargetScenePath} before wiring the five-digit " +
+                "puzzle configs.";
+            return false;
+        }
+
+        if (SceneManager.GetActiveScene() != targetScene)
+        {
+            refusal =
+                $"{TargetScenePath} must be the active scene before " +
+                "wiring the five-digit puzzle configs.";
+            return false;
+        }
+
+        if (targetScene.isDirty)
+        {
+            refusal =
+                "The target scene has unsaved changes. Save or discard " +
+                "them before wiring the five-digit puzzle configs.";
+            return false;
+        }
+
+        refusal = null;
+        return true;
+    }
+
+    private static LayeredDigitPuzzleConfig[]
+        LoadFiveDigitPuzzleConfigs(List<string> errors)
+    {
+        LayeredDigitPuzzleConfig[] puzzleConfigs =
+            new LayeredDigitPuzzleConfig[
+                FiveDigitPuzzleAssetPaths.Length];
+
+        for (int i = 0; i < FiveDigitPuzzleAssetPaths.Length; i++)
+        {
+            string assetPath = FiveDigitPuzzleAssetPaths[i];
+            LayeredDigitPuzzleConfig puzzleConfig =
+                AssetDatabase.LoadAssetAtPath<LayeredDigitPuzzleConfig>(
+                    assetPath);
+            puzzleConfigs[i] = puzzleConfig;
+
+            if (puzzleConfig == null)
+            {
+                errors.Add(
+                    $"Could not load LayeredDigitPuzzleConfig at " +
+                    $"{assetPath}.");
+                continue;
+            }
+
+            if (puzzleConfig.TargetCodeIndex !=
+                FiveDigitTargetCodeIndices[i])
+            {
+                errors.Add(
+                    $"{assetPath} has TargetCodeIndex " +
+                    $"{puzzleConfig.TargetCodeIndex}; expected " +
+                    $"{FiveDigitTargetCodeIndices[i]}.");
+            }
+
+            if (puzzleConfig.ExpectedDigit != FiveDigitExpectedDigits[i])
+            {
+                errors.Add(
+                    $"{assetPath} has ExpectedDigit " +
+                    $"{puzzleConfig.ExpectedDigit}; expected " +
+                    $"{FiveDigitExpectedDigits[i]}.");
+            }
+        }
+
+        return puzzleConfigs;
+    }
+
+    private static void ValidateFiveDigitPuzzleAssignment(
+        SerializedObject serializedController,
+        LayeredDigitPuzzleConfig[] expectedConfigs,
+        List<string> errors)
+    {
+        serializedController.Update();
+        SerializedProperty puzzleConfigsProperty =
+            serializedController.FindProperty("puzzleConfigs");
+
+        if (puzzleConfigsProperty == null)
+        {
+            errors.Add(
+                "LayeredDigitPuzzleController has no serialized " +
+                "puzzleConfigs property after assignment.");
+            return;
+        }
+
+        if (!puzzleConfigsProperty.isArray)
+        {
+            errors.Add(
+                "LayeredDigitPuzzleController.puzzleConfigs is not an " +
+                "array after assignment.");
+            return;
+        }
+
+        if (puzzleConfigsProperty.arraySize != expectedConfigs.Length)
+        {
+            errors.Add(
+                "LayeredDigitPuzzleController.puzzleConfigs has size " +
+                $"{puzzleConfigsProperty.arraySize}; expected " +
+                $"{expectedConfigs.Length}.");
+        }
+
+        int comparableCount = Math.Min(
+            puzzleConfigsProperty.arraySize,
+            expectedConfigs.Length);
+
+        for (int i = 0; i < comparableCount; i++)
+        {
+            SerializedProperty element =
+                puzzleConfigsProperty.GetArrayElementAtIndex(i);
+
+            if (element.propertyType !=
+                SerializedPropertyType.ObjectReference)
+            {
+                errors.Add(
+                    $"LayeredDigitPuzzleController.puzzleConfigs[{i}] " +
+                    "is not an object reference.");
+                continue;
+            }
+
+            if (element.objectReferenceValue != expectedConfigs[i])
+            {
+                errors.Add(
+                    $"LayeredDigitPuzzleController.puzzleConfigs[{i}] " +
+                    $"does not reference " +
+                    $"{FiveDigitPuzzleAssetPaths[i]}.");
+            }
+        }
+    }
+
+    private static void ReportFiveDigitWiringRefusal(string message)
+    {
+        Debug.LogError(message);
+        EditorUtility.DisplayDialog(
+            FiveDigitWiringDialogTitle,
+            message,
+            "OK");
+    }
+
+    private static void ReportFiveDigitWiringFailures(
+        string heading,
+        List<string> errors)
+    {
+        foreach (string error in errors)
+        {
+            Debug.LogError(error);
+        }
+
+        string report =
+            heading + "\n\n- " + string.Join("\n- ", errors);
+        EditorUtility.DisplayDialog(
+            FiveDigitWiringDialogTitle,
+            report,
+            "OK");
     }
 
     private static bool TryGetRunnableTargetScene(
