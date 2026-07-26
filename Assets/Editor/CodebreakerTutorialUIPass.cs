@@ -4,6 +4,7 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
@@ -21,6 +22,16 @@ public static class CodebreakerTutorialUIPass
         "Codebreaker Five-Digit Wiring";
     private const string FiveDigitWiringUndoName =
         "Wire Five-Digit Puzzle Configs";
+    private const string BombBackgroundMenuPath =
+        "Tools/Codebreaker/Install Bomb Background";
+    private const string BombBackgroundAssetPath =
+        "Assets/Art/CodebreakerBombBackground.png";
+    private const string BombBackgroundObjectName =
+        "CodebreakerBombBackground";
+    private const string BombBackgroundDialogTitle =
+        "Codebreaker Bomb Background";
+    private const string BombBackgroundUndoName =
+        "Install Codebreaker Bomb Background";
     private const string PhaseOneInstruction =
         "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
         "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
@@ -157,6 +168,134 @@ public static class CodebreakerTutorialUIPass
         }
     }
 
+    [MenuItem(BombBackgroundMenuPath)]
+    private static void InstallBombBackground()
+    {
+        if (!TryLoadBombBackgroundSprite(out Sprite sprite))
+        {
+            return;
+        }
+
+        if (!TryGetBombBackgroundTargetScene(
+                out Scene targetScene,
+                out string refusal))
+        {
+            ReportBombBackgroundRefusal(refusal);
+            return;
+        }
+
+        List<string> errors = new List<string>();
+        Camera targetCamera =
+            RequireUniqueComponent<Camera>(targetScene, errors);
+        GameObject backgroundObject = FindBombBackgroundObject(
+            targetScene,
+            errors);
+        float uniformScale = 0f;
+
+        ValidateBombBackgroundCamera(
+            targetScene,
+            targetCamera,
+            errors);
+
+        if (targetCamera != null)
+        {
+            uniformScale = CalculateBombBackgroundScale(
+                targetCamera,
+                sprite,
+                errors);
+        }
+
+        ValidateBombBackgroundBeforeRepair(
+            backgroundObject,
+            errors);
+
+        if (errors.Count > 0)
+        {
+            ReportBombBackgroundFailures(
+                "BOMB BACKGROUND VALIDATION FAILED",
+                errors);
+            return;
+        }
+
+        Undo.IncrementCurrentGroup();
+        int undoGroup = Undo.GetCurrentGroup();
+        Undo.SetCurrentGroupName(BombBackgroundUndoName);
+        bool mutationStarted = false;
+        bool sceneSaved = false;
+
+        try
+        {
+            mutationStarted = true;
+            SpriteRenderer spriteRenderer = ApplyBombBackground(
+                targetScene,
+                targetCamera,
+                backgroundObject,
+                sprite,
+                uniformScale);
+
+            List<string> appliedStateErrors = new List<string>();
+            ValidateBombBackgroundAppliedState(
+                targetScene,
+                targetCamera,
+                sprite,
+                uniformScale,
+                spriteRenderer,
+                appliedStateErrors);
+
+            if (appliedStateErrors.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Final applied-state validation failed:\n- " +
+                    string.Join("\n- ", appliedStateErrors));
+            }
+
+            EditorSceneManager.MarkSceneDirty(targetScene);
+
+            if (!EditorSceneManager.SaveScene(
+                    targetScene,
+                    TargetScenePath,
+                    false))
+            {
+                throw new InvalidOperationException(
+                    $"Unity could not save {TargetScenePath}.");
+            }
+
+            sceneSaved = true;
+            Undo.CollapseUndoOperations(undoGroup);
+
+            string successReport =
+                "CODEBREAKER BOMB BACKGROUND INSTALLED\n\n" +
+                $"Asset: {BombBackgroundAssetPath}\n" +
+                $"Camera: {GetHierarchyPath(targetCamera.gameObject)}\n" +
+                $"Object: {GetHierarchyPath(spriteRenderer.gameObject)}\n" +
+                $"Uniform cover scale: {uniformScale}\n" +
+                "Sorting: Default / -1000\n" +
+                "Input: no physics, UI, or behaviour components";
+            Debug.Log(successReport);
+            EditorUtility.DisplayDialog(
+                BombBackgroundDialogTitle,
+                successReport,
+                "OK");
+        }
+        catch (Exception exception)
+        {
+            if (mutationStarted && !sceneSaved)
+            {
+                Undo.RevertAllDownToGroup(undoGroup);
+            }
+
+            Debug.LogException(exception);
+            Debug.LogError(
+                "Codebreaker bomb background was not saved: " +
+                exception.Message);
+            EditorUtility.DisplayDialog(
+                BombBackgroundDialogTitle,
+                "CODEBREAKER BOMB BACKGROUND INSTALL FAILED\n\n" +
+                exception.Message,
+                "OK");
+        }
+    }
+
     [MenuItem(FiveDigitWiringMenuPath)]
     private static void WireFiveDigitPuzzleConfigs()
     {
@@ -285,6 +424,553 @@ public static class CodebreakerTutorialUIPass
                 exception.Message,
                 "OK");
         }
+    }
+
+    private static bool TryLoadBombBackgroundSprite(out Sprite sprite)
+    {
+        sprite = AssetDatabase.LoadAssetAtPath<Sprite>(
+            BombBackgroundAssetPath);
+
+        if (sprite == null)
+        {
+            string message =
+                $"Could not load a Sprite at {BombBackgroundAssetPath}.\n\n" +
+                "Select the texture and set Texture Type to " +
+                "Sprite (2D and UI), then apply the import settings.";
+            Debug.LogError(message);
+            EditorUtility.DisplayDialog(
+                BombBackgroundDialogTitle,
+                message,
+                "OK");
+            return false;
+        }
+
+        List<string> errors = new List<string>();
+
+        if (sprite.texture == null)
+        {
+            errors.Add("The loaded Sprite has no texture.");
+        }
+        else if (sprite.texture.width <= 0 ||
+            sprite.texture.height <= 0)
+        {
+            errors.Add(
+                "The loaded Sprite texture must have positive width and " +
+                "height.");
+        }
+
+        if (!(sprite.bounds.size.x > 0f) ||
+            !(sprite.bounds.size.y > 0f))
+        {
+            errors.Add(
+                "The loaded Sprite bounds must have positive width and " +
+                "height.");
+        }
+
+        if (errors.Count > 0)
+        {
+            ReportBombBackgroundFailures(
+                "BOMB BACKGROUND ASSET VALIDATION FAILED",
+                errors);
+            sprite = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetBombBackgroundTargetScene(
+        out Scene targetScene,
+        out string refusal)
+    {
+        targetScene = SceneManager.GetSceneByPath(TargetScenePath);
+
+        if (EditorApplication.isPlaying)
+        {
+            refusal =
+                "The bomb background cannot be installed while Unity is " +
+                "in Play Mode.";
+            return false;
+        }
+
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            refusal =
+                "The bomb background cannot be installed while Unity is " +
+                "entering Play Mode.";
+            return false;
+        }
+
+        if (!targetScene.IsValid() || !targetScene.isLoaded)
+        {
+            refusal =
+                $"Load {TargetScenePath} before installing the bomb " +
+                "background.";
+            return false;
+        }
+
+        if (SceneManager.GetActiveScene() != targetScene)
+        {
+            refusal =
+                $"{TargetScenePath} must be the active scene before " +
+                "installing the bomb background.";
+            return false;
+        }
+
+        if (targetScene.isDirty)
+        {
+            refusal =
+                "The target scene has unsaved changes. Save or discard " +
+                "them before installing the bomb background.";
+            return false;
+        }
+
+        refusal = null;
+        return true;
+    }
+
+    private static GameObject FindBombBackgroundObject(
+        Scene targetScene,
+        List<string> errors)
+    {
+        List<GameObject> matches = FindAllNamed(
+            targetScene,
+            BombBackgroundObjectName);
+
+        if (matches.Count > 1)
+        {
+            errors.Add(
+                $"{targetScene.path} contains {matches.Count} objects " +
+                $"named {BombBackgroundObjectName}; expected at most one " +
+                "before repair.");
+            return null;
+        }
+
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    private static void ValidateBombBackgroundCamera(
+        Scene targetScene,
+        Camera targetCamera,
+        List<string> errors)
+    {
+        if (targetCamera == null)
+        {
+            return;
+        }
+
+        if (targetCamera.gameObject.scene != targetScene)
+        {
+            errors.Add(
+                "The unique Camera does not belong to the active target " +
+                "scene.");
+        }
+
+        if (!targetCamera.enabled)
+        {
+            errors.Add("The unique Camera must be enabled.");
+        }
+
+        if (!targetCamera.orthographic)
+        {
+            errors.Add("The unique Camera must use orthographic projection.");
+        }
+    }
+
+    private static float CalculateBombBackgroundScale(
+        Camera targetCamera,
+        Sprite sprite,
+        List<string> errors)
+    {
+        float worldHeight = targetCamera.orthographicSize * 2f;
+        float worldWidth = worldHeight * targetCamera.aspect;
+        Vector2 spriteWorldSize = sprite.bounds.size;
+        float uniformScale = Mathf.Max(
+            worldWidth / spriteWorldSize.x,
+            worldHeight / spriteWorldSize.y);
+
+        if (!IsFinitePositive(worldHeight))
+        {
+            errors.Add(
+                "The Camera orthographic size does not produce a positive " +
+                "finite viewport height.");
+        }
+
+        if (!IsFinitePositive(worldWidth))
+        {
+            errors.Add(
+                "The Camera aspect does not produce a positive finite " +
+                "viewport width.");
+        }
+
+        if (!IsFinitePositive(uniformScale))
+        {
+            errors.Add(
+                "The calculated uniform cover scale must be positive and " +
+                "finite.");
+        }
+
+        return uniformScale;
+    }
+
+    private static void ValidateBombBackgroundBeforeRepair(
+        GameObject backgroundObject,
+        List<string> errors)
+    {
+        if (backgroundObject == null)
+        {
+            return;
+        }
+
+        int rendererCount =
+            backgroundObject.GetComponents<SpriteRenderer>().Length;
+
+        if (rendererCount > 1)
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} contains {rendererCount} " +
+                "SpriteRenderer components; expected at most one before " +
+                "repair.");
+        }
+    }
+
+    private static SpriteRenderer ApplyBombBackground(
+        Scene targetScene,
+        Camera targetCamera,
+        GameObject backgroundObject,
+        Sprite sprite,
+        float uniformScale)
+    {
+        if (backgroundObject == null)
+        {
+            backgroundObject = new GameObject(
+                BombBackgroundObjectName);
+            Undo.RegisterCreatedObjectUndo(
+                backgroundObject,
+                BombBackgroundUndoName);
+
+            if (backgroundObject.scene != targetScene)
+            {
+                throw new InvalidOperationException(
+                    $"New {BombBackgroundObjectName} was not created in " +
+                    $"{targetScene.path}.");
+            }
+        }
+
+        RemoveProhibitedBombBackgroundComponents(backgroundObject);
+
+        SpriteRenderer spriteRenderer =
+            backgroundObject.GetComponent<SpriteRenderer>();
+
+        if (spriteRenderer == null)
+        {
+            spriteRenderer = Undo.AddComponent<SpriteRenderer>(
+                backgroundObject);
+        }
+
+        if (!backgroundObject.activeSelf)
+        {
+            Undo.RecordObject(
+                backgroundObject,
+                BombBackgroundUndoName);
+            backgroundObject.SetActive(true);
+        }
+
+        Transform backgroundTransform = backgroundObject.transform;
+
+        if (backgroundTransform.parent != targetCamera.transform)
+        {
+            Undo.SetTransformParent(
+                backgroundTransform,
+                targetCamera.transform,
+                BombBackgroundUndoName);
+        }
+
+        Undo.RecordObject(
+            backgroundTransform,
+            BombBackgroundUndoName);
+        backgroundTransform.localPosition = new Vector3(0f, 0f, 50f);
+        backgroundTransform.localRotation = Quaternion.identity;
+        backgroundTransform.localScale = new Vector3(
+            uniformScale,
+            uniformScale,
+            1f);
+
+        if (backgroundTransform.GetSiblingIndex() != 0)
+        {
+            backgroundTransform.SetSiblingIndex(0);
+        }
+
+        Undo.RecordObject(spriteRenderer, BombBackgroundUndoName);
+        spriteRenderer.sprite = sprite;
+        spriteRenderer.color = Color.white;
+        spriteRenderer.enabled = true;
+        spriteRenderer.flipX = false;
+        spriteRenderer.flipY = false;
+        spriteRenderer.drawMode = SpriteDrawMode.Simple;
+        spriteRenderer.sortingLayerName = "Default";
+        spriteRenderer.sortingOrder = -1000;
+        spriteRenderer.maskInteraction = SpriteMaskInteraction.None;
+
+        return spriteRenderer;
+    }
+
+    private static void RemoveProhibitedBombBackgroundComponents(
+        GameObject backgroundObject)
+    {
+        HashSet<Component> prohibitedComponents =
+            new HashSet<Component>();
+
+        AddComponents(
+            prohibitedComponents,
+            backgroundObject.GetComponents<Collider2D>());
+        AddComponents(
+            prohibitedComponents,
+            backgroundObject.GetComponents<Rigidbody2D>());
+        AddComponents(
+            prohibitedComponents,
+            backgroundObject.GetComponents<MonoBehaviour>());
+        AddComponents(
+            prohibitedComponents,
+            backgroundObject.GetComponents<Canvas>());
+        AddComponents(
+            prohibitedComponents,
+            backgroundObject.GetComponents<CanvasRenderer>());
+        AddComponents(
+            prohibitedComponents,
+            backgroundObject.GetComponents<UnityEngine.UI.Graphic>());
+
+        foreach (Component component in prohibitedComponents)
+        {
+            if (component != null)
+            {
+                Undo.DestroyObjectImmediate(component);
+            }
+        }
+    }
+
+    private static void AddComponents<T>(
+        HashSet<Component> destination,
+        T[] components)
+        where T : Component
+    {
+        foreach (T component in components)
+        {
+            if (component != null)
+            {
+                destination.Add(component);
+            }
+        }
+    }
+
+    private static void ValidateBombBackgroundAppliedState(
+        Scene targetScene,
+        Camera targetCamera,
+        Sprite sprite,
+        float uniformScale,
+        SpriteRenderer appliedRenderer,
+        List<string> errors)
+    {
+        List<GameObject> matches = FindAllNamed(
+            targetScene,
+            BombBackgroundObjectName);
+
+        if (matches.Count != 1)
+        {
+            errors.Add(
+                $"{targetScene.path} contains {matches.Count} objects " +
+                $"named {BombBackgroundObjectName}; expected exactly one.");
+            return;
+        }
+
+        GameObject backgroundObject = matches[0];
+        Transform backgroundTransform = backgroundObject.transform;
+
+        if (backgroundObject.scene != targetScene)
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} does not belong to the active " +
+                "target scene.");
+        }
+
+        if (!backgroundObject.activeSelf)
+        {
+            errors.Add($"{BombBackgroundObjectName} is not active.");
+        }
+
+        if (backgroundTransform.parent != targetCamera.transform)
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} is not a direct child of the " +
+                "unique Camera.");
+        }
+
+        if (backgroundTransform.GetSiblingIndex() != 0)
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} is not the Camera's first " +
+                "child.");
+        }
+
+        if (backgroundTransform.localPosition !=
+            new Vector3(0f, 0f, 50f))
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} local position is invalid.");
+        }
+
+        if (backgroundTransform.localRotation != Quaternion.identity)
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} local rotation is invalid.");
+        }
+
+        Vector3 expectedScale = new Vector3(
+            uniformScale,
+            uniformScale,
+            1f);
+
+        if (backgroundTransform.localScale != expectedScale ||
+            !IsFinitePositive(backgroundTransform.localScale.x) ||
+            backgroundTransform.localScale.x !=
+                backgroundTransform.localScale.y)
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} local scale is not the " +
+                "expected positive finite uniform cover scale.");
+        }
+
+        SpriteRenderer[] renderers =
+            backgroundObject.GetComponents<SpriteRenderer>();
+
+        if (renderers.Length != 1)
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} contains {renderers.Length} " +
+                "SpriteRenderer components; expected exactly one.");
+        }
+        else
+        {
+            SpriteRenderer renderer = renderers[0];
+
+            if (renderer != appliedRenderer)
+            {
+                errors.Add(
+                    "The applied SpriteRenderer is not the object's single " +
+                    "SpriteRenderer.");
+            }
+
+            if (renderer.sprite != sprite)
+            {
+                errors.Add(
+                    "The SpriteRenderer does not reference the exact loaded " +
+                    "background Sprite.");
+            }
+
+            if (renderer.color != Color.white)
+            {
+                errors.Add("The SpriteRenderer color is not white.");
+            }
+
+            if (!renderer.enabled)
+            {
+                errors.Add("The SpriteRenderer is not enabled.");
+            }
+
+            if (renderer.flipX || renderer.flipY)
+            {
+                errors.Add("The SpriteRenderer must not be flipped.");
+            }
+
+            if (renderer.drawMode != SpriteDrawMode.Simple)
+            {
+                errors.Add(
+                    "The SpriteRenderer draw mode is not Simple.");
+            }
+
+            if (renderer.sortingLayerName != "Default" ||
+                renderer.sortingOrder != -1000)
+            {
+                errors.Add(
+                    "The SpriteRenderer sorting is not Default / -1000.");
+            }
+
+            if (renderer.maskInteraction !=
+                SpriteMaskInteraction.None)
+            {
+                errors.Add(
+                    "The SpriteRenderer mask interaction is not None.");
+            }
+        }
+
+        ValidateNoBombBackgroundComponents<Collider2D>(
+            backgroundObject,
+            errors);
+        ValidateNoBombBackgroundComponents<Rigidbody2D>(
+            backgroundObject,
+            errors);
+        ValidateNoBombBackgroundComponents<MonoBehaviour>(
+            backgroundObject,
+            errors);
+        ValidateNoBombBackgroundComponents<Canvas>(
+            backgroundObject,
+            errors);
+        ValidateNoBombBackgroundComponents<CanvasRenderer>(
+            backgroundObject,
+            errors);
+        ValidateNoBombBackgroundComponents<UnityEngine.UI.Graphic>(
+            backgroundObject,
+            errors);
+    }
+
+    private static void ValidateNoBombBackgroundComponents<T>(
+        GameObject backgroundObject,
+        List<string> errors)
+        where T : Component
+    {
+        int componentCount =
+            backgroundObject.GetComponents<T>().Length;
+
+        if (componentCount > 0)
+        {
+            errors.Add(
+                $"{BombBackgroundObjectName} contains {componentCount} " +
+                $"{typeof(T).Name} component(s); expected none.");
+        }
+    }
+
+    private static bool IsFinitePositive(float value)
+    {
+        return value > 0f &&
+            !float.IsNaN(value) &&
+            !float.IsInfinity(value);
+    }
+
+    private static void ReportBombBackgroundRefusal(string message)
+    {
+        Debug.LogError(message);
+        EditorUtility.DisplayDialog(
+            BombBackgroundDialogTitle,
+            message,
+            "OK");
+    }
+
+    private static void ReportBombBackgroundFailures(
+        string heading,
+        List<string> errors)
+    {
+        foreach (string error in errors)
+        {
+            Debug.LogError(error);
+        }
+
+        string report =
+            heading + "\n\n- " + string.Join("\n- ", errors);
+        Debug.LogError(report);
+        EditorUtility.DisplayDialog(
+            BombBackgroundDialogTitle,
+            report,
+            "OK");
     }
 
     private static bool TryGetFiveDigitWiringTargetScene(
