@@ -6859,7 +6859,7 @@ MonoBehaviour:
   hud: {fileID: 895364532}
   codeDiscoveryRoot: {fileID: 897963829}
   equationEntryRoot: {fileID: 1686546179}
-  enableDebugControls: 1
+  enableDebugControls: 0
 --- !u!114 &978098555
 MonoBehaviour:
   m_ObjectHideFlags: 0

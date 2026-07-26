@@ -8,8 +8,10 @@ public class CodebreakerGameController : MonoBehaviour
         "RECOVER THE THREE-DIGIT ACCESS CODE";
     private const string EquationStatus =
         "ENTER THE RECOVERED CODE THROUGH A + B";
-    private const string DefusedResult = "BOMB DEFUSED";
-    private const string ExplodedResult = "BOOM\nGAME OVER";
+    private const string DefusedResult =
+        "BOMB DEFUSED\nPRESS R TO RESTART";
+    private const string ExplodedResult =
+        "BOOM\nGAME OVER\nPRESS R TO RESTART";
 
     [Header("Configuration")]
     [SerializeField] private CodebreakerLevelConfig levelConfig;
@@ -34,6 +36,8 @@ public class CodebreakerGameController : MonoBehaviour
     public bool IsTerminalState =>
         CurrentPhase == CodebreakerPhase.Defused ||
         CurrentPhase == CodebreakerPhase.Exploded;
+    private bool DebugControlsEnabled =>
+        enableDebugControls && Debug.isDebugBuild;
 
     public event Action<CodebreakerPhase> PhaseChanged;
     public event Action LevelStarted;
@@ -105,7 +109,7 @@ public class CodebreakerGameController : MonoBehaviour
         codeSequenceDisplay.Initialize(levelConfig.CodeDigitCount);
         codeSequenceDisplay.Clear();
         hud.SetResult(string.Empty);
-        hud.SetDebugHelpVisible(enableDebugControls);
+        hud.SetDebugHelpVisible(DebugControlsEnabled);
         SetPhase(CodebreakerPhase.CodeDiscovery);
 
         globalTimer.Initialize(breakdown.FinalSeconds);
@@ -385,11 +389,6 @@ public class CodebreakerGameController : MonoBehaviour
 
     private void HandleDebugControls()
     {
-        if (!enableDebugControls)
-        {
-            return;
-        }
-
         Keyboard keyboard = Keyboard.current;
 
         if (keyboard == null)
@@ -403,7 +402,7 @@ public class CodebreakerGameController : MonoBehaviour
             return;
         }
 
-        if (IsTerminalState)
+        if (!DebugControlsEnabled || IsTerminalState)
         {
             return;
         }
