@@ -33,6 +33,7 @@ public class LayeredDigitPuzzleController : MonoBehaviour
     private bool configurationErrorsLogged;
     private float failureResetAtUnscaledTime = NoDelayedAction;
     private float successAdvanceAtUnscaledTime = NoDelayedAction;
+    private float pauseStartedAtUnscaledTime = NoDelayedAction;
 
     public IReadOnlyList<LayeredDigitPuzzleConfig> PuzzleConfigs =>
         Array.AsReadOnly(
@@ -82,6 +83,12 @@ public class LayeredDigitPuzzleController : MonoBehaviour
     {
         if (!configurationValid || gameController == null)
         {
+            return;
+        }
+
+        if (gameController.IsGameplayPaused)
+        {
+            SetInteractionBlocked(true);
             return;
         }
 
@@ -172,6 +179,8 @@ public class LayeredDigitPuzzleController : MonoBehaviour
             !segmentView.CanAdvance ||
             ActivePuzzleConfig == null ||
             gameController == null ||
+            gameController.IsGameplayInputBlocked ||
+            gameController.IsGameplayPaused ||
             gameController.IsTerminalState ||
             gameController.CurrentPhase !=
                 CodebreakerPhase.CodeDiscovery ||
@@ -837,6 +846,7 @@ public class LayeredDigitPuzzleController : MonoBehaviour
         gameController.LevelStarted += HandleLevelStarted;
         gameController.PhaseChanged += HandlePhaseChanged;
         gameController.DigitRegistered += HandleDigitRegistered;
+        gameController.GameplayPauseChanged += HandleGameplayPauseChanged;
         eventsSubscribed = true;
     }
 
@@ -850,13 +860,76 @@ public class LayeredDigitPuzzleController : MonoBehaviour
         gameController.LevelStarted -= HandleLevelStarted;
         gameController.PhaseChanged -= HandlePhaseChanged;
         gameController.DigitRegistered -= HandleDigitRegistered;
+        gameController.GameplayPauseChanged -= HandleGameplayPauseChanged;
         eventsSubscribed = false;
     }
 
     private void HandleLevelStarted()
     {
+        pauseStartedAtUnscaledTime = NoDelayedAction;
         CancelDelayedActions();
         SynchronizeToGameState();
+    }
+
+    private void HandleGameplayPauseChanged(bool paused)
+    {
+        if (paused)
+        {
+            if (pauseStartedAtUnscaledTime < 0f)
+            {
+                pauseStartedAtUnscaledTime = Time.unscaledTime;
+            }
+
+            SetInteractionBlocked(true);
+            return;
+        }
+
+        if (pauseStartedAtUnscaledTime >= 0f)
+        {
+            float pausedDuration =
+                Time.unscaledTime - pauseStartedAtUnscaledTime;
+
+            if (failureResetAtUnscaledTime >= 0f)
+            {
+                failureResetAtUnscaledTime += pausedDuration;
+            }
+
+            if (successAdvanceAtUnscaledTime >= 0f)
+            {
+                successAdvanceAtUnscaledTime += pausedDuration;
+            }
+        }
+
+        pauseStartedAtUnscaledTime = NoDelayedAction;
+        SynchronizeInteractionAfterResume();
+    }
+
+    private void SynchronizeInteractionAfterResume()
+    {
+        if (!configurationValid ||
+            gameController == null ||
+            gameController.IsTerminalState ||
+            gameController.CurrentPhase !=
+                CodebreakerPhase.CodeDiscovery)
+        {
+            LockInteraction();
+            return;
+        }
+
+        if (gameController.CurrentCodeIndex != ActivePuzzleIndex)
+        {
+            SynchronizeToGameState();
+            return;
+        }
+
+        if (IsResolving || IsSolved)
+        {
+            SetInteractionBlocked(true);
+            return;
+        }
+
+        IsPlaying = true;
+        SetInteractionBlocked(false);
     }
 
     private void HandlePhaseChanged(CodebreakerPhase phase)

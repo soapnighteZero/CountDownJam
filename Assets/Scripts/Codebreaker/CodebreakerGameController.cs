@@ -32,7 +32,10 @@ public class CodebreakerGameController : MonoBehaviour
 
     public CodebreakerPhase CurrentPhase { get; private set; }
     public CodebreakerLevelConfig LevelConfig => levelConfig;
+    public GlobalBombTimer GlobalTimer => globalTimer;
     public int CurrentCodeIndex { get; private set; }
+    public bool IsGameplayInputBlocked { get; private set; } = true;
+    public bool IsGameplayPaused { get; private set; }
     public bool IsTerminalState =>
         CurrentPhase == CodebreakerPhase.Defused ||
         CurrentPhase == CodebreakerPhase.Exploded;
@@ -40,6 +43,7 @@ public class CodebreakerGameController : MonoBehaviour
         enableDebugControls && Debug.isDebugBuild;
 
     public event Action<CodebreakerPhase> PhaseChanged;
+    public event Action<bool> GameplayPauseChanged;
     public event Action LevelStarted;
     public event Action<int, int> DigitRegistered;
 
@@ -50,7 +54,7 @@ public class CodebreakerGameController : MonoBehaviour
 
     private void Start()
     {
-        StartLevel();
+        PrepareForMainMenu();
     }
 
     private void Update()
@@ -105,6 +109,8 @@ public class CodebreakerGameController : MonoBehaviour
 
         LogTimerBreakdown(breakdown);
 
+        IsGameplayPaused = false;
+        IsGameplayInputBlocked = false;
         CurrentCodeIndex = 0;
         codeSequenceDisplay.Initialize(levelConfig.CodeDigitCount);
         codeSequenceDisplay.Clear();
@@ -121,6 +127,49 @@ public class CodebreakerGameController : MonoBehaviour
     public void RestartLevel()
     {
         StartLevel();
+    }
+
+    public void PrepareForMainMenu()
+    {
+        if (globalTimer != null)
+        {
+            globalTimer.StopTimer();
+        }
+
+        configurationValid = false;
+        phaseInitialized = false;
+        CurrentCodeIndex = 0;
+        IsGameplayPaused = false;
+        IsGameplayInputBlocked = true;
+
+        if (codeDiscoveryRoot != null)
+        {
+            codeDiscoveryRoot.SetActive(false);
+        }
+
+        if (equationEntryRoot != null)
+        {
+            equationEntryRoot.SetActive(false);
+        }
+
+        if (hud != null)
+        {
+            hud.SetStatus(string.Empty);
+            hud.SetResult(string.Empty);
+            hud.SetDebugHelpVisible(false);
+        }
+    }
+
+    public void SetGameplayPaused(bool paused)
+    {
+        if (IsGameplayPaused == paused)
+        {
+            return;
+        }
+
+        IsGameplayPaused = paused;
+        IsGameplayInputBlocked = paused;
+        GameplayPauseChanged?.Invoke(paused);
     }
 
     public bool RevealNextCodeDigitForDebug()
@@ -225,6 +274,7 @@ public class CodebreakerGameController : MonoBehaviour
         }
 
         globalTimer.StopTimer();
+        IsGameplayInputBlocked = true;
         SetPhase(CodebreakerPhase.Defused);
         hud.SetStatus(string.Empty);
         hud.SetResult(DefusedResult);
@@ -238,6 +288,7 @@ public class CodebreakerGameController : MonoBehaviour
         }
 
         globalTimer.StopTimer();
+        IsGameplayInputBlocked = true;
         SetPhase(CodebreakerPhase.Exploded);
         hud.SetStatus(string.IsNullOrWhiteSpace(reason)
             ? "EXPLOSION"
@@ -329,6 +380,8 @@ public class CodebreakerGameController : MonoBehaviour
 
     private void ShowConfigurationError()
     {
+        IsGameplayInputBlocked = true;
+
         if (globalTimer != null)
         {
             globalTimer.StopTimer();
@@ -389,6 +442,11 @@ public class CodebreakerGameController : MonoBehaviour
 
     private void HandleDebugControls()
     {
+        if (IsGameplayInputBlocked)
+        {
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
 
         if (keyboard == null)

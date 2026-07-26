@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEditor;
+using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -33,6 +36,21 @@ public static class CodebreakerTutorialUIPass
         "Codebreaker Bomb Background";
     private const string BombBackgroundUndoName =
         "Install Codebreaker Bomb Background";
+    private const string ReleaseMenuPath =
+        "Tools/Codebreaker/Build Release Menus";
+    private const string ReleaseMenuDialogTitle =
+        "Codebreaker Release Menus";
+    private const string ReleaseMenuUndoName =
+        "Build Codebreaker Release Menus";
+    private const string ReleaseMenuCanvasName =
+        "ReleaseMenuCanvas";
+    private const string ReleaseMenuSuccessReport =
+        "CODEBREAKER RELEASE MENUS BUILT\n\n" +
+        "Main menu: PLAY / QUIT\n" +
+        "Pause menu: RESUME / RETRY / QUIT\n" +
+        "Escape toggle: enabled\n" +
+        "Timer pause: enabled\n" +
+        "New Input System: preserved";
     private const string EquationStatusPanelName =
         "EquationStatusPanel";
     private const string PhaseOneInstruction =
@@ -219,6 +237,82 @@ public static class CodebreakerTutorialUIPass
                 "CODEBREAKER TUTORIAL UI PASS FAILED\n\n" +
                 exception.Message,
                 "OK");
+        }
+    }
+
+    [MenuItem(ReleaseMenuPath)]
+    private static void BuildReleaseMenus()
+    {
+        if (!TryGetReleaseMenuTargetScene(
+                out Scene targetScene,
+                out string refusal))
+        {
+            ReportReleaseMenuFailure(refusal);
+            return;
+        }
+
+        List<string> errors = new List<string>();
+        ReleaseMenuContext context =
+            ValidateReleaseMenuScene(targetScene, errors);
+
+        if (errors.Count > 0)
+        {
+            ReportReleaseMenuFailures(errors);
+            return;
+        }
+
+        Undo.IncrementCurrentGroup();
+        int undoGroup = Undo.GetCurrentGroup();
+        Undo.SetCurrentGroupName(ReleaseMenuUndoName);
+        bool mutationStarted = false;
+        bool sceneSaved = false;
+
+        try
+        {
+            mutationStarted = true;
+            ApplyReleaseMenus(context);
+            List<string> appliedStateErrors = new List<string>();
+            ValidateReleaseMenuAppliedState(
+                context,
+                appliedStateErrors);
+
+            if (appliedStateErrors.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Final applied-state validation failed:\n- " +
+                    string.Join("\n- ", appliedStateErrors));
+            }
+
+            EditorSceneManager.MarkSceneDirty(targetScene);
+
+            if (!EditorSceneManager.SaveScene(
+                    targetScene,
+                    TargetScenePath,
+                    false))
+            {
+                throw new InvalidOperationException(
+                    $"Unity could not save {TargetScenePath}.");
+            }
+
+            sceneSaved = true;
+            Undo.CollapseUndoOperations(undoGroup);
+            Debug.Log(ReleaseMenuSuccessReport);
+            EditorUtility.DisplayDialog(
+                ReleaseMenuDialogTitle,
+                ReleaseMenuSuccessReport,
+                "OK");
+        }
+        catch (Exception exception)
+        {
+            if (mutationStarted && !sceneSaved)
+            {
+                Undo.RevertAllDownToGroup(undoGroup);
+            }
+
+            Debug.LogException(exception);
+            ReportReleaseMenuFailure(
+                "CODEBREAKER RELEASE MENU BUILD FAILED\n\n" +
+                exception.Message);
         }
     }
 
@@ -3978,6 +4072,2432 @@ public static class CodebreakerTutorialUIPass
         return path;
     }
 
+    private static bool TryGetReleaseMenuTargetScene(
+        out Scene targetScene,
+        out string refusal)
+    {
+        targetScene = SceneManager.GetSceneByPath(TargetScenePath);
+
+        if (EditorApplication.isPlaying)
+        {
+            refusal =
+                "Release menus cannot be built while Unity is in Play Mode.";
+            return false;
+        }
+
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            refusal =
+                "Release menus cannot be built while Unity is entering " +
+                "Play Mode.";
+            return false;
+        }
+
+        if (!targetScene.IsValid() || !targetScene.isLoaded)
+        {
+            refusal =
+                $"Load {TargetScenePath} before building release menus.";
+            return false;
+        }
+
+        if (SceneManager.GetActiveScene() != targetScene)
+        {
+            refusal =
+                $"{TargetScenePath} must be the active scene before " +
+                "building release menus.";
+            return false;
+        }
+
+        if (targetScene.isDirty)
+        {
+            refusal =
+                "The target scene has unsaved changes. Save or discard " +
+                "them before building release menus.";
+            return false;
+        }
+
+        refusal = null;
+        return true;
+    }
+
+    private static ReleaseMenuContext ValidateReleaseMenuScene(
+        Scene targetScene,
+        List<string> errors)
+    {
+        ReleaseMenuContext context = new ReleaseMenuContext
+        {
+            TargetScene = targetScene,
+            GameController =
+                RequireUniqueComponent<CodebreakerGameController>(
+                    targetScene,
+                    errors),
+            GlobalTimer = RequireUniqueComponent<GlobalBombTimer>(
+                targetScene,
+                errors),
+            EquationInteraction =
+                RequireUniqueComponent<
+                    CodebreakerEquationInteractionController>(
+                        targetScene,
+                        errors),
+            Hud = RequireUniqueComponent<CodebreakerHUD>(
+                targetScene,
+                errors),
+            EventSystem = RequireUniqueComponent<EventSystem>(
+                targetScene,
+                errors),
+            HudCanvas = FindUniqueNamed(
+                targetScene,
+                "CodebreakerHUDCanvas",
+                errors),
+            BombBackground = FindUniqueNamed(
+                targetScene,
+                BombBackgroundObjectName,
+                errors),
+            ReleaseCanvas = FindOptionalUniqueNamed(
+                targetScene,
+                ReleaseMenuCanvasName,
+                errors)
+        };
+
+        Camera mainCamera = RequireUniqueComponent<Camera>(
+            targetScene,
+            errors);
+        GameObject equationWorldRoot = FindOptionalUniqueNamed(
+            targetScene,
+            "EquationEntryWorldRoot",
+            errors);
+        GameObject equationStatusPanel = FindOptionalUniqueNamed(
+            targetScene,
+            EquationStatusPanelName,
+            errors);
+        GameObject displayA = FindOptionalUniqueNamed(
+            targetScene,
+            "Display_A",
+            errors);
+        GameObject displayB = FindOptionalUniqueNamed(
+            targetScene,
+            "Display_B",
+            errors);
+        GameObject codeDiscoveryRoot = ReadGameObjectReference(
+            context.GameController,
+            "codeDiscoveryRoot",
+            errors);
+        GameObject equationEntryRoot = ReadGameObjectReference(
+            context.GameController,
+            "equationEntryRoot",
+            errors);
+        List<SegmentInventoryTray> inventoryTrays =
+            GetSceneComponents<SegmentInventoryTray>(targetScene);
+
+        if (inventoryTrays.Count > 1)
+        {
+            errors.Add(
+                $"{targetScene.path} contains {inventoryTrays.Count} " +
+                "SegmentInventoryTray components; Buffer preservation " +
+                "requires at most one.");
+        }
+
+        ValidateReleaseMenuEventSystem(context, errors);
+        ValidateReleaseMenuFontSource(context, errors);
+        ValidateExistingReleaseMenuObjects(context, errors);
+
+        if (mainCamera != null &&
+            mainCamera.gameObject.name != "Main Camera")
+        {
+            errors.Add(
+                "The unique scene Camera must be named Main Camera.");
+        }
+
+        if (context.GameController != null &&
+            context.GlobalTimer != null &&
+            context.GameController.GlobalTimer != context.GlobalTimer)
+        {
+            errors.Add(
+                "CodebreakerGameController and GlobalBombTimer do not " +
+                "reference the same timer.");
+        }
+
+        if (context.HudCanvas != null &&
+            context.HudCanvas.GetComponent<Canvas>() == null)
+        {
+            errors.Add("CodebreakerHUDCanvas is missing Canvas.");
+        }
+
+        if (context.ReleaseCanvas != null &&
+            context.ReleaseCanvas.transform.parent != null)
+        {
+            errors.Add(
+                "ReleaseMenuCanvas must be a root object before repair.");
+        }
+
+        if (errors.Count == 0)
+        {
+            context.PreservedStates.Add(
+                new PreservedHierarchyState(
+                    context.BombBackground,
+                    "CodebreakerBombBackground"));
+            context.PreservedStates.Add(
+                new PreservedHierarchyState(
+                    context.HudCanvas,
+                    "CodebreakerHUDCanvas hierarchy"));
+            context.PreservedStates.Add(
+                new PreservedHierarchyState(
+                    mainCamera.gameObject,
+                    "Main Camera"));
+            context.PreservedStates.Add(
+                new PreservedHierarchyState(
+                    context.EventSystem.gameObject,
+                    "EventSystem and InputSystemUIInputModule"));
+
+            if (equationWorldRoot != null &&
+                equationWorldRoot != context.HudCanvas)
+            {
+                context.PreservedStates.Add(
+                    new PreservedHierarchyState(
+                        equationWorldRoot,
+                        "EquationEntryWorldRoot"));
+            }
+
+            if (equationStatusPanel != null &&
+                equationStatusPanel != context.HudCanvas)
+            {
+                context.PreservedStates.Add(
+                    new PreservedHierarchyState(
+                        equationStatusPanel,
+                        EquationStatusPanelName));
+            }
+
+            AddPreservedState(
+                context,
+                codeDiscoveryRoot,
+                "Code discovery hierarchy");
+            AddPreservedState(
+                context,
+                equationEntryRoot,
+                "Equation entry hierarchy");
+            AddPreservedState(
+                context,
+                displayA,
+                "central Equation display A");
+            AddPreservedState(
+                context,
+                displayB,
+                "central Equation display B");
+
+            if (inventoryTrays.Count == 1)
+            {
+                AddPreservedState(
+                    context,
+                    inventoryTrays[0].gameObject,
+                    "Buffer presentation");
+            }
+        }
+
+        return context;
+    }
+
+    private static GameObject ReadGameObjectReference(
+        Component component,
+        string propertyName,
+        List<string> errors)
+    {
+        if (component == null)
+        {
+            return null;
+        }
+
+        SerializedObject serializedObject =
+            new SerializedObject(component);
+        serializedObject.Update();
+        SerializedProperty property =
+            serializedObject.FindProperty(propertyName);
+        GameObject value =
+            property?.objectReferenceValue as GameObject;
+
+        if (property == null || value == null)
+        {
+            errors.Add(
+                $"{component.GetType().Name}.{propertyName} must reference " +
+                "a scene GameObject.");
+        }
+
+        return value;
+    }
+
+    private static void AddPreservedState(
+        ReleaseMenuContext context,
+        GameObject gameObject,
+        string label)
+    {
+        if (gameObject != null)
+        {
+            context.PreservedStates.Add(
+                new PreservedHierarchyState(gameObject, label));
+        }
+    }
+
+    private static void ValidateReleaseMenuEventSystem(
+        ReleaseMenuContext context,
+        List<string> errors)
+    {
+        if (context.EventSystem == null)
+        {
+            return;
+        }
+
+        InputSystemUIInputModule[] inputModules =
+            context.EventSystem.GetComponents<InputSystemUIInputModule>();
+
+        if (inputModules.Length != 1)
+        {
+            errors.Add(
+                "The existing EventSystem must contain exactly one " +
+                "InputSystemUIInputModule.");
+        }
+
+        if (GetSceneComponents<StandaloneInputModule>(
+                context.TargetScene).Count > 0)
+        {
+            errors.Add(
+                "The existing EventSystem contains a prohibited legacy " +
+                "StandaloneInputModule.");
+        }
+    }
+
+    private static void ValidateReleaseMenuFontSource(
+        ReleaseMenuContext context,
+        List<string> errors)
+    {
+        if (context.Hud == null)
+        {
+            return;
+        }
+
+        SerializedObject serializedHud = new SerializedObject(context.Hud);
+        serializedHud.Update();
+        SerializedProperty timerProperty =
+            serializedHud.FindProperty("timerText");
+        SerializedProperty phaseProperty =
+            serializedHud.FindProperty("phaseText");
+        TMP_Text sourceText =
+            timerProperty?.objectReferenceValue as TMP_Text ??
+            phaseProperty?.objectReferenceValue as TMP_Text;
+
+        if (sourceText == null)
+        {
+            errors.Add(
+                "CodebreakerHUD timerText or phaseText must provide the " +
+                "release menu font.");
+            return;
+        }
+
+        if (sourceText.font == null)
+        {
+            errors.Add(
+                "The release menu source TMP text has no font asset.");
+        }
+
+        if (sourceText.fontSharedMaterial == null)
+        {
+            errors.Add(
+                "The release menu source TMP text has no shared material.");
+        }
+
+        context.FontAsset = sourceText.font;
+        context.FontMaterial = sourceText.fontSharedMaterial;
+    }
+
+    private static void ValidateExistingReleaseMenuObjects(
+        ReleaseMenuContext context,
+        List<string> errors)
+    {
+        string[] uniqueNames =
+        {
+            ReleaseMenuCanvasName,
+            "MainMenuRoot",
+            "MainMenuDim",
+            "MainMenuPanel",
+            "MainTitleText",
+            "MainSubtitleText",
+            "MainTaglineText",
+            "PlayButton",
+            "MainQuitButton",
+            "PauseMenuRoot",
+            "PauseMenuDim",
+            "PauseMenuPanel",
+            "PauseTitleText",
+            "PauseHintText",
+            "ResumeButton",
+            "RetryButton",
+            "PauseQuitButton"
+        };
+
+        foreach (string objectName in uniqueNames)
+        {
+            List<GameObject> matches =
+                FindAllNamed(context.TargetScene, objectName);
+
+            if (matches.Count > 1)
+            {
+                errors.Add(
+                    $"{context.TargetScene.path} contains {matches.Count} " +
+                    $"objects named {objectName}; duplicate release menu " +
+                    "objects cannot be repaired safely.");
+                continue;
+            }
+
+            if (matches.Count == 1 &&
+                !(matches[0].transform is RectTransform))
+            {
+                errors.Add(
+                    $"{GetHierarchyPath(matches[0])} must use a " +
+                    "RectTransform.");
+            }
+
+            if (matches.Count == 1)
+            {
+                foreach (Component component in
+                    matches[0].GetComponents<Component>())
+                {
+                    if (component == null)
+                    {
+                        errors.Add(
+                            $"{GetHierarchyPath(matches[0])} contains a " +
+                            "missing script component.");
+                        break;
+                    }
+                }
+            }
+        }
+
+        List<CodebreakerMenuController> controllers =
+            GetSceneComponents<CodebreakerMenuController>(
+                context.TargetScene);
+
+        if (controllers.Count > 1)
+        {
+            errors.Add(
+                $"{context.TargetScene.path} contains {controllers.Count} " +
+                "CodebreakerMenuController components; expected at most " +
+                "one before repair.");
+        }
+        else if (controllers.Count == 1 &&
+                 (context.ReleaseCanvas == null ||
+                  controllers[0].gameObject != context.ReleaseCanvas))
+        {
+            errors.Add(
+                "The existing CodebreakerMenuController must belong to " +
+                "ReleaseMenuCanvas.");
+        }
+
+        string[] buttonNames =
+        {
+            "PlayButton",
+            "MainQuitButton",
+            "ResumeButton",
+            "RetryButton",
+            "PauseQuitButton"
+        };
+
+        foreach (string buttonName in buttonNames)
+        {
+            List<GameObject> matches =
+                FindAllNamed(context.TargetScene, buttonName);
+
+            if (matches.Count != 1)
+            {
+                continue;
+            }
+
+            int labelCount = 0;
+
+            foreach (Transform child in matches[0].transform)
+            {
+                if (child.name == "Label")
+                {
+                    labelCount++;
+                }
+            }
+
+            if (labelCount > 1)
+            {
+                errors.Add(
+                    $"{GetHierarchyPath(matches[0])} contains duplicate " +
+                    "direct Label children.");
+            }
+        }
+    }
+
+    private static void ApplyReleaseMenus(ReleaseMenuContext context)
+    {
+        GameObject canvasObject = GetOrCreateReleaseMenuObject(
+            context.TargetScene,
+            ReleaseMenuCanvasName,
+            null);
+        context.ReleaseCanvas = canvasObject;
+        EnsureExactComponents(
+            canvasObject,
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler),
+            typeof(GraphicRaycaster),
+            typeof(CodebreakerMenuController));
+        ConfigureReleaseCanvas(canvasObject);
+
+        GameObject mainRoot = GetOrCreateReleaseMenuObject(
+            context.TargetScene,
+            "MainMenuRoot",
+            canvasObject.transform);
+        GameObject pauseRoot = GetOrCreateReleaseMenuObject(
+            context.TargetScene,
+            "PauseMenuRoot",
+            canvasObject.transform);
+        EnsureExactComponents(mainRoot, typeof(RectTransform));
+        EnsureExactComponents(pauseRoot, typeof(RectTransform));
+        ConfigureFullStretch(mainRoot.GetComponent<RectTransform>());
+        ConfigureFullStretch(pauseRoot.GetComponent<RectTransform>());
+
+        GameObject mainDim = CreateOrRepairReleaseImage(
+            context,
+            "MainMenuDim",
+            mainRoot.transform,
+            new Color(0.005f, 0.012f, 0.02f, 0.78f),
+            true,
+            true,
+            Vector2.zero,
+            Vector2.zero);
+        GameObject mainPanel = CreateOrRepairReleaseImage(
+            context,
+            "MainMenuPanel",
+            mainRoot.transform,
+            new Color(0.012f, 0.035f, 0.055f, 0.94f),
+            true,
+            false,
+            Vector2.zero,
+            new Vector2(720f, 580f));
+
+        TMP_Text mainTitle = CreateOrRepairReleaseText(
+            context,
+            "MainTitleText",
+            mainPanel.transform,
+            "COUNT DOWN",
+            new Vector2(0f, 190f),
+            new Vector2(620f, 100f),
+            72f,
+            FontStyles.Bold,
+            new Color(1f, 0.78f, 0.20f, 1f));
+        TMP_Text mainSubtitle = CreateOrRepairReleaseText(
+            context,
+            "MainSubtitleText",
+            mainPanel.transform,
+            "CODEBREAKER PROTOCOL",
+            new Vector2(0f, 105f),
+            new Vector2(620f, 54f),
+            30f,
+            FontStyles.Bold,
+            new Color(0.30f, 0.88f, 1f, 1f));
+        TMP_Text mainTagline = CreateOrRepairReleaseText(
+            context,
+            "MainTaglineText",
+            mainPanel.transform,
+            "RECOVER THE CODE. DEFUSE THE DEVICE.",
+            new Vector2(0f, 52f),
+            new Vector2(620f, 38f),
+            18f,
+            FontStyles.Normal,
+            new Color(0.65f, 0.76f, 0.82f, 1f));
+
+        context.PlayButton = CreateOrRepairReleaseButton(
+            context,
+            "PlayButton",
+            mainPanel.transform,
+            "PLAY",
+            new Vector2(0f, -80f),
+            new Vector2(360f, 76f),
+            new Color(0.04f, 0.32f, 0.38f, 0.98f));
+        context.MainQuitButton = CreateOrRepairReleaseButton(
+            context,
+            "MainQuitButton",
+            mainPanel.transform,
+            "QUIT",
+            new Vector2(0f, -180f),
+            new Vector2(360f, 76f),
+            new Color(0.38f, 0.08f, 0.07f, 0.98f));
+
+        GameObject pauseDim = CreateOrRepairReleaseImage(
+            context,
+            "PauseMenuDim",
+            pauseRoot.transform,
+            new Color(0.005f, 0.012f, 0.02f, 0.72f),
+            true,
+            true,
+            Vector2.zero,
+            Vector2.zero);
+        GameObject pausePanel = CreateOrRepairReleaseImage(
+            context,
+            "PauseMenuPanel",
+            pauseRoot.transform,
+            new Color(0.012f, 0.035f, 0.055f, 0.96f),
+            true,
+            false,
+            Vector2.zero,
+            new Vector2(640f, 580f));
+
+        TMP_Text pauseTitle = CreateOrRepairReleaseText(
+            context,
+            "PauseTitleText",
+            pausePanel.transform,
+            "PAUSED",
+            new Vector2(0f, 190f),
+            new Vector2(560f, 90f),
+            62f,
+            FontStyles.Bold,
+            new Color(1f, 0.78f, 0.20f, 1f));
+        TMP_Text pauseHint = CreateOrRepairReleaseText(
+            context,
+            "PauseHintText",
+            pausePanel.transform,
+            "PRESS ESC TO RESUME",
+            new Vector2(0f, 125f),
+            new Vector2(560f, 38f),
+            18f,
+            FontStyles.Normal,
+            new Color(0.65f, 0.76f, 0.82f, 1f));
+
+        context.ResumeButton = CreateOrRepairReleaseButton(
+            context,
+            "ResumeButton",
+            pausePanel.transform,
+            "RESUME",
+            new Vector2(0f, 35f),
+            new Vector2(360f, 72f),
+            new Color(0.04f, 0.32f, 0.38f, 0.98f));
+        context.RetryButton = CreateOrRepairReleaseButton(
+            context,
+            "RetryButton",
+            pausePanel.transform,
+            "RETRY",
+            new Vector2(0f, -65f),
+            new Vector2(360f, 72f),
+            new Color(0.42f, 0.29f, 0.06f, 0.98f));
+        context.PauseQuitButton = CreateOrRepairReleaseButton(
+            context,
+            "PauseQuitButton",
+            pausePanel.transform,
+            "QUIT",
+            new Vector2(0f, -165f),
+            new Vector2(360f, 72f),
+            new Color(0.38f, 0.08f, 0.07f, 0.98f));
+
+        RemoveUnexpectedDirectChildren(
+            canvasObject,
+            mainRoot,
+            pauseRoot);
+        RemoveUnexpectedDirectChildren(mainRoot, mainDim, mainPanel);
+        RemoveUnexpectedDirectChildren(
+            mainPanel,
+            mainTitle.gameObject,
+            mainSubtitle.gameObject,
+            mainTagline.gameObject,
+            context.PlayButton.gameObject,
+            context.MainQuitButton.gameObject);
+        RemoveUnexpectedDirectChildren(pauseRoot, pauseDim, pausePanel);
+        RemoveUnexpectedDirectChildren(
+            pausePanel,
+            pauseTitle.gameObject,
+            pauseHint.gameObject,
+            context.ResumeButton.gameObject,
+            context.RetryButton.gameObject,
+            context.PauseQuitButton.gameObject);
+        SetReleaseSiblingOrder(canvasObject, mainRoot, pauseRoot);
+        SetReleaseSiblingOrder(mainRoot, mainDim, mainPanel);
+        SetReleaseSiblingOrder(
+            mainPanel,
+            mainTitle.gameObject,
+            mainSubtitle.gameObject,
+            mainTagline.gameObject,
+            context.PlayButton.gameObject,
+            context.MainQuitButton.gameObject);
+        SetReleaseSiblingOrder(pauseRoot, pauseDim, pausePanel);
+        SetReleaseSiblingOrder(
+            pausePanel,
+            pauseTitle.gameObject,
+            pauseHint.gameObject,
+            context.ResumeButton.gameObject,
+            context.RetryButton.gameObject,
+            context.PauseQuitButton.gameObject);
+
+        context.MenuController =
+            canvasObject.GetComponent<CodebreakerMenuController>();
+        AssignReleaseMenuController(
+            context,
+            mainRoot,
+            pauseRoot);
+        WireReleaseMenuButtons(context);
+
+        SetReleaseActiveWithUndo(canvasObject, true);
+        SetReleaseActiveWithUndo(mainRoot, true);
+        SetReleaseActiveWithUndo(pauseRoot, false);
+    }
+
+    private static GameObject GetOrCreateReleaseMenuObject(
+        Scene scene,
+        string objectName,
+        Transform parent)
+    {
+        List<GameObject> matches = FindAllNamed(scene, objectName);
+        GameObject gameObject;
+
+        if (matches.Count == 0)
+        {
+            gameObject = new GameObject(
+                objectName,
+                typeof(RectTransform));
+            Undo.RegisterCreatedObjectUndo(
+                gameObject,
+                ReleaseMenuUndoName);
+            SceneManager.MoveGameObjectToScene(gameObject, scene);
+        }
+        else
+        {
+            gameObject = matches[0];
+        }
+
+        if (gameObject.transform.parent != parent)
+        {
+            Undo.SetTransformParent(
+                gameObject.transform,
+                parent,
+                ReleaseMenuUndoName);
+        }
+
+        Undo.RecordObject(gameObject.transform, ReleaseMenuUndoName);
+        gameObject.transform.localScale = Vector3.one;
+        gameObject.transform.localRotation = Quaternion.identity;
+        return gameObject;
+    }
+
+    private static void EnsureExactComponents(
+        GameObject gameObject,
+        params Type[] requiredTypes)
+    {
+        foreach (Type requiredType in requiredTypes)
+        {
+            if (gameObject.GetComponent(requiredType) == null)
+            {
+                Undo.AddComponent(gameObject, requiredType);
+            }
+        }
+
+        Component[] components = gameObject.GetComponents<Component>();
+
+        foreach (Component component in components)
+        {
+            bool allowed = false;
+
+            foreach (Type requiredType in requiredTypes)
+            {
+                if (component != null &&
+                    requiredType.IsInstanceOfType(component))
+                {
+                    allowed = true;
+                    break;
+                }
+            }
+
+            if (!allowed && component != null)
+            {
+                Undo.DestroyObjectImmediate(component);
+            }
+        }
+    }
+
+    private static void ConfigureReleaseCanvas(GameObject canvasObject)
+    {
+        RectTransform rectTransform =
+            canvasObject.GetComponent<RectTransform>();
+        ConfigureFullStretch(rectTransform);
+
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        Undo.RecordObject(canvas, ReleaseMenuUndoName);
+        canvas.enabled = true;
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.pixelPerfect = false;
+        canvas.overrideSorting = false;
+        canvas.sortingOrder = 1000;
+        canvas.targetDisplay = 0;
+        canvas.worldCamera = null;
+
+        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+        Undo.RecordObject(scaler, ReleaseMenuUndoName);
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode =
+            CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
+        scaler.referencePixelsPerUnit = 100f;
+
+        GraphicRaycaster raycaster =
+            canvasObject.GetComponent<GraphicRaycaster>();
+        Undo.RecordObject(raycaster, ReleaseMenuUndoName);
+        raycaster.enabled = true;
+        raycaster.ignoreReversedGraphics = true;
+        raycaster.blockingObjects =
+            GraphicRaycaster.BlockingObjects.None;
+    }
+
+    private static GameObject CreateOrRepairReleaseImage(
+        ReleaseMenuContext context,
+        string objectName,
+        Transform parent,
+        Color color,
+        bool raycastTarget,
+        bool fullStretch,
+        Vector2 position,
+        Vector2 size)
+    {
+        GameObject gameObject = GetOrCreateReleaseMenuObject(
+            context.TargetScene,
+            objectName,
+            parent);
+        EnsureExactComponents(
+            gameObject,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image));
+
+        RectTransform rectTransform =
+            gameObject.GetComponent<RectTransform>();
+
+        if (fullStretch)
+        {
+            ConfigureFullStretch(rectTransform);
+        }
+        else
+        {
+            ConfigureCenteredRect(rectTransform, position, size);
+        }
+
+        Image image = gameObject.GetComponent<Image>();
+        Undo.RecordObject(image, ReleaseMenuUndoName);
+        image.enabled = true;
+        image.color = color;
+        image.raycastTarget = raycastTarget;
+        image.sprite = null;
+        image.overrideSprite = null;
+        image.material = null;
+        image.type = Image.Type.Simple;
+        image.maskable = true;
+        return gameObject;
+    }
+
+    private static TMP_Text CreateOrRepairReleaseText(
+        ReleaseMenuContext context,
+        string objectName,
+        Transform parent,
+        string content,
+        Vector2 position,
+        Vector2 size,
+        float fontSize,
+        FontStyles fontStyle,
+        Color color)
+    {
+        GameObject gameObject = GetOrCreateReleaseMenuObject(
+            context.TargetScene,
+            objectName,
+            parent);
+        EnsureExactComponents(
+            gameObject,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
+        ConfigureCenteredRect(
+            gameObject.GetComponent<RectTransform>(),
+            position,
+            size);
+
+        TMP_Text text = gameObject.GetComponent<TMP_Text>();
+        Undo.RecordObject(text, ReleaseMenuUndoName);
+        text.text = content;
+        text.font = context.FontAsset;
+        text.fontSharedMaterial = context.FontMaterial;
+        text.fontSize = fontSize;
+        text.fontStyle = fontStyle;
+        text.color = color;
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = false;
+        return text;
+    }
+
+    private static Button CreateOrRepairReleaseButton(
+        ReleaseMenuContext context,
+        string objectName,
+        Transform parent,
+        string labelContent,
+        Vector2 position,
+        Vector2 size,
+        Color normalColor)
+    {
+        GameObject gameObject = GetOrCreateReleaseMenuObject(
+            context.TargetScene,
+            objectName,
+            parent);
+        EnsureExactComponents(
+            gameObject,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Button));
+        ConfigureCenteredRect(
+            gameObject.GetComponent<RectTransform>(),
+            position,
+            size);
+
+        Image image = gameObject.GetComponent<Image>();
+        Undo.RecordObject(image, ReleaseMenuUndoName);
+        image.enabled = true;
+        image.sprite = null;
+        image.overrideSprite = null;
+        image.material = null;
+        image.raycastTarget = true;
+        image.type = Image.Type.Simple;
+        image.maskable = true;
+        image.color = Color.white;
+
+        Button button = gameObject.GetComponent<Button>();
+        Undo.RecordObject(button, ReleaseMenuUndoName);
+        button.targetGraphic = image;
+        button.transition = Selectable.Transition.ColorTint;
+        Color highlightedColor =
+            MultiplyRgbPreserveAlpha(normalColor, 1.18f);
+        ColorBlock colors = button.colors;
+        colors.normalColor = normalColor;
+        colors.highlightedColor = highlightedColor;
+        colors.pressedColor =
+            MultiplyRgbPreserveAlpha(normalColor, 0.78f);
+        colors.selectedColor = highlightedColor;
+        colors.disabledColor =
+            new Color(0.16f, 0.18f, 0.20f, 0.75f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+        Navigation navigation = button.navigation;
+        navigation.mode = Navigation.Mode.Automatic;
+        button.navigation = navigation;
+
+        GameObject labelObject = GetOrCreateButtonLabel(
+            context.TargetScene,
+            gameObject);
+        EnsureExactComponents(
+            labelObject,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
+        ConfigureFullStretch(
+            labelObject.GetComponent<RectTransform>());
+        TMP_Text label = labelObject.GetComponent<TMP_Text>();
+        Undo.RecordObject(label, ReleaseMenuUndoName);
+        label.text = labelContent;
+        label.font = context.FontAsset;
+        label.fontSharedMaterial = context.FontMaterial;
+        label.fontSize = 28f;
+        label.fontStyle = FontStyles.Bold;
+        label.color = Color.white;
+        label.alignment = TextAlignmentOptions.Center;
+        label.raycastTarget = false;
+        RemoveUnexpectedDirectChildren(gameObject, labelObject);
+        return button;
+    }
+
+    private static GameObject GetOrCreateButtonLabel(
+        Scene scene,
+        GameObject buttonObject)
+    {
+        GameObject labelObject = null;
+
+        foreach (Transform child in buttonObject.transform)
+        {
+            if (child.name == "Label")
+            {
+                labelObject = child.gameObject;
+                break;
+            }
+        }
+
+        if (labelObject == null)
+        {
+            labelObject = new GameObject(
+                "Label",
+                typeof(RectTransform));
+            Undo.RegisterCreatedObjectUndo(
+                labelObject,
+                ReleaseMenuUndoName);
+            SceneManager.MoveGameObjectToScene(labelObject, scene);
+            Undo.SetTransformParent(
+                labelObject.transform,
+                buttonObject.transform,
+                ReleaseMenuUndoName);
+        }
+
+        return labelObject;
+    }
+
+    private static void ConfigureFullStretch(
+        RectTransform rectTransform)
+    {
+        Undo.RecordObject(rectTransform, ReleaseMenuUndoName);
+        rectTransform.anchorMin = Vector2.zero;
+        rectTransform.anchorMax = Vector2.one;
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.anchoredPosition3D = Vector3.zero;
+        rectTransform.sizeDelta = Vector2.zero;
+        rectTransform.offsetMin = Vector2.zero;
+        rectTransform.offsetMax = Vector2.zero;
+        rectTransform.localScale = Vector3.one;
+        rectTransform.localRotation = Quaternion.identity;
+    }
+
+    private static void SetReleaseActiveWithUndo(
+        GameObject gameObject,
+        bool active)
+    {
+        if (gameObject.activeSelf == active)
+        {
+            return;
+        }
+
+        Undo.RecordObject(gameObject, ReleaseMenuUndoName);
+        gameObject.SetActive(active);
+    }
+
+    private static void ConfigureCenteredRect(
+        RectTransform rectTransform,
+        Vector2 position,
+        Vector2 size)
+    {
+        Undo.RecordObject(rectTransform, ReleaseMenuUndoName);
+        rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        rectTransform.anchoredPosition = position;
+        rectTransform.sizeDelta = size;
+        rectTransform.localScale = Vector3.one;
+        rectTransform.localRotation = Quaternion.identity;
+    }
+
+    private static Color MultiplyRgbPreserveAlpha(
+        Color color,
+        float multiplier)
+    {
+        return new Color(
+            color.r * multiplier,
+            color.g * multiplier,
+            color.b * multiplier,
+            color.a);
+    }
+
+    private static void RemoveUnexpectedDirectChildren(
+        GameObject parent,
+        params GameObject[] expectedChildren)
+    {
+        List<GameObject> unexpected = new List<GameObject>();
+
+        foreach (Transform child in parent.transform)
+        {
+            bool expected = false;
+
+            foreach (GameObject expectedChild in expectedChildren)
+            {
+                if (child.gameObject == expectedChild)
+                {
+                    expected = true;
+                    break;
+                }
+            }
+
+            if (!expected)
+            {
+                unexpected.Add(child.gameObject);
+            }
+        }
+
+        foreach (GameObject child in unexpected)
+        {
+            Undo.DestroyObjectImmediate(child);
+        }
+    }
+
+    private static void SetReleaseSiblingOrder(
+        GameObject parent,
+        params GameObject[] children)
+    {
+        for (int i = 0; i < children.Length; i++)
+        {
+            Transform child = children[i].transform;
+
+            if (child.GetSiblingIndex() != i)
+            {
+                Undo.RecordObject(child, ReleaseMenuUndoName);
+                child.SetSiblingIndex(i);
+            }
+        }
+    }
+
+    private static void AssignReleaseMenuController(
+        ReleaseMenuContext context,
+        GameObject mainRoot,
+        GameObject pauseRoot)
+    {
+        Undo.RecordObject(context.MenuController, ReleaseMenuUndoName);
+        SerializedObject serializedController =
+            new SerializedObject(context.MenuController);
+        serializedController.Update();
+        SetObjectReference(
+            serializedController,
+            "gameController",
+            context.GameController);
+        SetObjectReference(
+            serializedController,
+            "globalTimer",
+            context.GlobalTimer);
+        SetObjectReference(
+            serializedController,
+            "equationInteraction",
+            context.EquationInteraction);
+        SetObjectReference(
+            serializedController,
+            "gameplayHudRoot",
+            context.HudCanvas);
+        SetObjectReference(
+            serializedController,
+            "mainMenuRoot",
+            mainRoot);
+        SetObjectReference(
+            serializedController,
+            "pauseMenuRoot",
+            pauseRoot);
+        SetObjectReference(
+            serializedController,
+            "playButton",
+            context.PlayButton);
+        SetObjectReference(
+            serializedController,
+            "resumeButton",
+            context.ResumeButton);
+        SetObjectReference(
+            serializedController,
+            "retryButton",
+            context.RetryButton);
+        SetObjectReference(
+            serializedController,
+            "mainQuitButton",
+            context.MainQuitButton);
+        SetObjectReference(
+            serializedController,
+            "pauseQuitButton",
+            context.PauseQuitButton);
+        serializedController.ApplyModifiedProperties();
+    }
+
+    private static void SetObjectReference(
+        SerializedObject serializedObject,
+        string propertyName,
+        Object value)
+    {
+        SerializedProperty property =
+            serializedObject.FindProperty(propertyName);
+
+        if (property == null)
+        {
+            throw new InvalidOperationException(
+                $"{serializedObject.targetObject.GetType().Name} is " +
+                $"missing serialized field {propertyName}.");
+        }
+
+        property.objectReferenceValue = value;
+    }
+
+    private static void WireReleaseMenuButtons(
+        ReleaseMenuContext context)
+    {
+        ClearPersistentListeners(context.PlayButton);
+        ClearPersistentListeners(context.MainQuitButton);
+        ClearPersistentListeners(context.ResumeButton);
+        ClearPersistentListeners(context.RetryButton);
+        ClearPersistentListeners(context.PauseQuitButton);
+        UnityEventTools.AddPersistentListener(
+            context.PlayButton.onClick,
+            context.MenuController.PlayGame);
+        UnityEventTools.AddPersistentListener(
+            context.MainQuitButton.onClick,
+            context.MenuController.QuitGame);
+        UnityEventTools.AddPersistentListener(
+            context.ResumeButton.onClick,
+            context.MenuController.ResumeGame);
+        UnityEventTools.AddPersistentListener(
+            context.RetryButton.onClick,
+            context.MenuController.RetryGame);
+        UnityEventTools.AddPersistentListener(
+            context.PauseQuitButton.onClick,
+            context.MenuController.QuitGame);
+    }
+
+    private static void ClearPersistentListeners(Button button)
+    {
+        Undo.RecordObject(button, ReleaseMenuUndoName);
+
+        for (int i = button.onClick.GetPersistentEventCount() - 1;
+            i >= 0;
+            i--)
+        {
+            UnityEventTools.RemovePersistentListener(button.onClick, i);
+        }
+    }
+
+    private static void ValidateReleaseMenuAppliedState(
+        ReleaseMenuContext context,
+        List<string> errors)
+    {
+        foreach (PreservedHierarchyState state in context.PreservedStates)
+        {
+            state.Validate(errors);
+        }
+
+        ValidateReleaseCanvasAppliedState(context, errors);
+        ValidateReleaseMenuHierarchy(context, errors);
+        ValidateReleaseMenuControllerWiring(context, errors);
+        ValidateReleaseButtonCallback(
+            context.PlayButton,
+            context.MenuController,
+            nameof(CodebreakerMenuController.PlayGame),
+            errors);
+        ValidateReleaseButtonCallback(
+            context.MainQuitButton,
+            context.MenuController,
+            nameof(CodebreakerMenuController.QuitGame),
+            errors);
+        ValidateReleaseButtonCallback(
+            context.ResumeButton,
+            context.MenuController,
+            nameof(CodebreakerMenuController.ResumeGame),
+            errors);
+        ValidateReleaseButtonCallback(
+            context.RetryButton,
+            context.MenuController,
+            nameof(CodebreakerMenuController.RetryGame),
+            errors);
+        ValidateReleaseButtonCallback(
+            context.PauseQuitButton,
+            context.MenuController,
+            nameof(CodebreakerMenuController.QuitGame),
+            errors);
+
+        if (!context.MenuController.ValidateReferences())
+        {
+            errors.Add(
+                "CodebreakerMenuController.ValidateReferences failed " +
+                "after wiring.");
+        }
+    }
+
+    private static void ValidateReleaseCanvasAppliedState(
+        ReleaseMenuContext context,
+        List<string> errors)
+    {
+        List<GameObject> roots =
+            FindAllNamed(context.TargetScene, ReleaseMenuCanvasName);
+
+        if (roots.Count != 1)
+        {
+            errors.Add(
+                $"Expected one {ReleaseMenuCanvasName}; found " +
+                $"{roots.Count}.");
+            return;
+        }
+
+        GameObject root = roots[0];
+        int controllerCount =
+            GetSceneComponents<CodebreakerMenuController>(
+                context.TargetScene).Count;
+
+        if (root.transform.parent != null)
+        {
+            errors.Add(
+                "ReleaseMenuCanvas transform.parent expected null but was " +
+                $"{GetHierarchyPath(root.transform.parent.gameObject)}.");
+        }
+
+        if (root.scene != context.TargetScene)
+        {
+            errors.Add(
+                "ReleaseMenuCanvas scene expected " +
+                $"{context.TargetScene.path} but was {root.scene.path}.");
+        }
+
+        if (!root.activeSelf)
+        {
+            errors.Add(
+                "ReleaseMenuCanvas activeSelf expected true but was false.");
+        }
+
+        if (controllerCount != 1)
+        {
+            errors.Add(
+                "CodebreakerMenuController component count expected 1 but " +
+                $"was {controllerCount}.");
+        }
+
+        Type[] expectedTypes =
+        {
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler),
+            typeof(GraphicRaycaster),
+            typeof(CodebreakerMenuController)
+        };
+        ValidateExactComponents(root, expectedTypes, errors);
+
+        Canvas[] canvases = root.GetComponents<Canvas>();
+        Canvas canvas = canvases.Length == 1 ? canvases[0] : null;
+        CanvasScaler scaler = root.GetComponent<CanvasScaler>();
+        GraphicRaycaster raycaster =
+            root.GetComponent<GraphicRaycaster>();
+
+        if (canvases.Length != 1)
+        {
+            errors.Add(
+                "ReleaseMenuCanvas Canvas component count expected 1 but " +
+                $"was {canvases.Length}.");
+        }
+
+        if (canvas != null)
+        {
+            if (!canvas.enabled)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas Canvas enabled expected true but " +
+                    "was false.");
+            }
+
+            if (canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas Canvas renderMode expected " +
+                    $"{RenderMode.ScreenSpaceOverlay} but was " +
+                    $"{canvas.renderMode}.");
+            }
+
+            if (canvas.pixelPerfect)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas Canvas pixelPerfect expected false " +
+                    "but was true.");
+            }
+
+            if (canvas.overrideSorting)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas Canvas overrideSorting expected " +
+                    "false but was true.");
+            }
+
+            if (canvas.sortingOrder != 1000)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas Canvas sortingOrder expected 1000 " +
+                    $"but was {canvas.sortingOrder}.");
+            }
+
+            if (canvas.targetDisplay != 0)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas Canvas targetDisplay expected 0 but " +
+                    $"was {canvas.targetDisplay}.");
+            }
+
+            if (canvas.worldCamera != null)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas Canvas worldCamera expected null but " +
+                    $"was {canvas.worldCamera.name}.");
+            }
+
+            if (!canvas.isRootCanvas)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas Canvas isRootCanvas expected true " +
+                    "but was false.");
+            }
+        }
+
+        if (scaler == null)
+        {
+            errors.Add(
+                "ReleaseMenuCanvas CanvasScaler component expected one but " +
+                "was missing.");
+        }
+        else
+        {
+            if (scaler.uiScaleMode !=
+                CanvasScaler.ScaleMode.ScaleWithScreenSize)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas CanvasScaler uiScaleMode expected " +
+                    $"{CanvasScaler.ScaleMode.ScaleWithScreenSize} but was " +
+                    $"{scaler.uiScaleMode}.");
+            }
+
+            Vector2 resolution = scaler.referenceResolution;
+
+            if (!Mathf.Approximately(resolution.x, 1920f))
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas CanvasScaler " +
+                    "referenceResolution.x expected 1920 but was " +
+                    $"{resolution.x}.");
+            }
+
+            if (!Mathf.Approximately(resolution.y, 1080f))
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas CanvasScaler " +
+                    "referenceResolution.y expected 1080 but was " +
+                    $"{resolution.y}.");
+            }
+
+            if (scaler.screenMatchMode !=
+                CanvasScaler.ScreenMatchMode.MatchWidthOrHeight)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas CanvasScaler screenMatchMode " +
+                    $"expected " +
+                    $"{CanvasScaler.ScreenMatchMode.MatchWidthOrHeight} " +
+                    $"but was {scaler.screenMatchMode}.");
+            }
+
+            if (!Mathf.Approximately(
+                    scaler.matchWidthOrHeight,
+                    0.5f))
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas CanvasScaler matchWidthOrHeight " +
+                    $"expected 0.5 but was {scaler.matchWidthOrHeight}.");
+            }
+
+            if (!Mathf.Approximately(
+                    scaler.referencePixelsPerUnit,
+                    100f))
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas CanvasScaler " +
+                    "referencePixelsPerUnit expected 100 but was " +
+                    $"{scaler.referencePixelsPerUnit}.");
+            }
+        }
+
+        if (raycaster == null)
+        {
+            errors.Add(
+                "ReleaseMenuCanvas GraphicRaycaster component expected one " +
+                "but was missing.");
+        }
+        else
+        {
+            if (!raycaster.enabled)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas GraphicRaycaster enabled expected " +
+                    "true but was false.");
+            }
+
+            if (!raycaster.ignoreReversedGraphics)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas GraphicRaycaster " +
+                    "ignoreReversedGraphics expected true but was false.");
+            }
+
+            if (raycaster.blockingObjects !=
+                GraphicRaycaster.BlockingObjects.None)
+            {
+                errors.Add(
+                    "ReleaseMenuCanvas GraphicRaycaster blockingObjects " +
+                    $"expected {GraphicRaycaster.BlockingObjects.None} but " +
+                    $"was {raycaster.blockingObjects}.");
+            }
+        }
+
+        if (root.GetComponentsInChildren<Canvas>(true).Length != 1 ||
+            root.GetComponentInChildren<EventSystem>(true) != null ||
+            root.GetComponentInChildren<StandaloneInputModule>(true) !=
+                null ||
+            root.GetComponentInChildren<Collider2D>(true) != null ||
+            root.GetComponentInChildren<Rigidbody2D>(true) != null)
+        {
+            errors.Add(
+                "ReleaseMenuCanvas contains a prohibited component.");
+        }
+    }
+
+    private static void ValidateReleaseMenuHierarchy(
+        ReleaseMenuContext context,
+        List<string> errors)
+    {
+        string[] uniqueNames =
+        {
+            "MainMenuRoot",
+            "MainMenuDim",
+            "MainMenuPanel",
+            "MainTitleText",
+            "MainSubtitleText",
+            "MainTaglineText",
+            "PlayButton",
+            "MainQuitButton",
+            "PauseMenuRoot",
+            "PauseMenuDim",
+            "PauseMenuPanel",
+            "PauseTitleText",
+            "PauseHintText",
+            "ResumeButton",
+            "RetryButton",
+            "PauseQuitButton"
+        };
+
+        foreach (string objectName in uniqueNames)
+        {
+            RequireExactNamedCount(
+                context.TargetScene,
+                objectName,
+                1,
+                errors);
+        }
+
+        GameObject mainRoot = FindSingleNamedUnchecked(
+            context.TargetScene,
+            "MainMenuRoot");
+        GameObject pauseRoot = FindSingleNamedUnchecked(
+            context.TargetScene,
+            "PauseMenuRoot");
+        GameObject mainPanel = FindSingleNamedUnchecked(
+            context.TargetScene,
+            "MainMenuPanel");
+        GameObject pausePanel = FindSingleNamedUnchecked(
+            context.TargetScene,
+            "PauseMenuPanel");
+
+        ValidateDirectChildren(
+            context.ReleaseCanvas,
+            errors,
+            mainRoot,
+            pauseRoot);
+        ValidateDirectChildren(
+            mainRoot,
+            errors,
+            FindSingleNamedUnchecked(context.TargetScene, "MainMenuDim"),
+            mainPanel);
+        ValidateDirectChildren(
+            mainPanel,
+            errors,
+            FindSingleNamedUnchecked(context.TargetScene, "MainTitleText"),
+            FindSingleNamedUnchecked(
+                context.TargetScene,
+                "MainSubtitleText"),
+            FindSingleNamedUnchecked(
+                context.TargetScene,
+                "MainTaglineText"),
+            context.PlayButton.gameObject,
+            context.MainQuitButton.gameObject);
+        ValidateDirectChildren(
+            pauseRoot,
+            errors,
+            FindSingleNamedUnchecked(context.TargetScene, "PauseMenuDim"),
+            pausePanel);
+        ValidateDirectChildren(
+            pausePanel,
+            errors,
+            FindSingleNamedUnchecked(context.TargetScene, "PauseTitleText"),
+            FindSingleNamedUnchecked(context.TargetScene, "PauseHintText"),
+            context.ResumeButton.gameObject,
+            context.RetryButton.gameObject,
+            context.PauseQuitButton.gameObject);
+
+        if (mainRoot == null || !mainRoot.activeSelf ||
+            pauseRoot == null || pauseRoot.activeSelf)
+        {
+            errors.Add(
+                "MainMenuRoot must be active and PauseMenuRoot inactive " +
+                "after construction.");
+        }
+
+        ValidateExactComponents(
+            mainRoot,
+            new[] { typeof(RectTransform) },
+            errors);
+        ValidateExactComponents(
+            pauseRoot,
+            new[] { typeof(RectTransform) },
+            errors);
+        ValidateFullStretchRect(mainRoot, errors);
+        ValidateFullStretchRect(pauseRoot, errors);
+        ValidateReleaseImage(
+            context,
+            "MainMenuDim",
+            new Color(0.005f, 0.012f, 0.02f, 0.78f),
+            true,
+            true,
+            Vector2.zero,
+            Vector2.zero,
+            errors);
+        ValidateReleaseImage(
+            context,
+            "MainMenuPanel",
+            new Color(0.012f, 0.035f, 0.055f, 0.94f),
+            true,
+            false,
+            Vector2.zero,
+            new Vector2(720f, 580f),
+            errors);
+        ValidateReleaseText(
+            context,
+            "MainTitleText",
+            "COUNT DOWN",
+            new Vector2(0f, 190f),
+            new Vector2(620f, 100f),
+            72f,
+            FontStyles.Bold,
+            new Color(1f, 0.78f, 0.20f, 1f),
+            errors);
+        ValidateReleaseText(
+            context,
+            "MainSubtitleText",
+            "CODEBREAKER PROTOCOL",
+            new Vector2(0f, 105f),
+            new Vector2(620f, 54f),
+            30f,
+            FontStyles.Bold,
+            new Color(0.30f, 0.88f, 1f, 1f),
+            errors);
+        ValidateReleaseText(
+            context,
+            "MainTaglineText",
+            "RECOVER THE CODE. DEFUSE THE DEVICE.",
+            new Vector2(0f, 52f),
+            new Vector2(620f, 38f),
+            18f,
+            FontStyles.Normal,
+            new Color(0.65f, 0.76f, 0.82f, 1f),
+            errors);
+        ValidateReleaseImage(
+            context,
+            "PauseMenuDim",
+            new Color(0.005f, 0.012f, 0.02f, 0.72f),
+            true,
+            true,
+            Vector2.zero,
+            Vector2.zero,
+            errors);
+        ValidateReleaseImage(
+            context,
+            "PauseMenuPanel",
+            new Color(0.012f, 0.035f, 0.055f, 0.96f),
+            true,
+            false,
+            Vector2.zero,
+            new Vector2(640f, 580f),
+            errors);
+        ValidateReleaseText(
+            context,
+            "PauseTitleText",
+            "PAUSED",
+            new Vector2(0f, 190f),
+            new Vector2(560f, 90f),
+            62f,
+            FontStyles.Bold,
+            new Color(1f, 0.78f, 0.20f, 1f),
+            errors);
+        ValidateReleaseText(
+            context,
+            "PauseHintText",
+            "PRESS ESC TO RESUME",
+            new Vector2(0f, 125f),
+            new Vector2(560f, 38f),
+            18f,
+            FontStyles.Normal,
+            new Color(0.65f, 0.76f, 0.82f, 1f),
+            errors);
+
+        ValidateReleaseButton(
+            context,
+            context.PlayButton,
+            "PLAY",
+            new Vector2(0f, -80f),
+            new Vector2(360f, 76f),
+            new Color(0.04f, 0.32f, 0.38f, 0.98f),
+            errors);
+        ValidateReleaseButton(
+            context,
+            context.MainQuitButton,
+            "QUIT",
+            new Vector2(0f, -180f),
+            new Vector2(360f, 76f),
+            new Color(0.38f, 0.08f, 0.07f, 0.98f),
+            errors);
+        ValidateReleaseButton(
+            context,
+            context.ResumeButton,
+            "RESUME",
+            new Vector2(0f, 35f),
+            new Vector2(360f, 72f),
+            new Color(0.04f, 0.32f, 0.38f, 0.98f),
+            errors);
+        ValidateReleaseButton(
+            context,
+            context.RetryButton,
+            "RETRY",
+            new Vector2(0f, -65f),
+            new Vector2(360f, 72f),
+            new Color(0.42f, 0.29f, 0.06f, 0.98f),
+            errors);
+        ValidateReleaseButton(
+            context,
+            context.PauseQuitButton,
+            "QUIT",
+            new Vector2(0f, -165f),
+            new Vector2(360f, 72f),
+            new Color(0.38f, 0.08f, 0.07f, 0.98f),
+            errors);
+    }
+
+    private static void ValidateReleaseImage(
+        ReleaseMenuContext context,
+        string objectName,
+        Color expectedColor,
+        bool expectedRaycastTarget,
+        bool fullStretch,
+        Vector2 expectedPosition,
+        Vector2 expectedSize,
+        List<string> errors)
+    {
+        GameObject gameObject = FindSingleNamedUnchecked(
+            context.TargetScene,
+            objectName);
+
+        if (gameObject == null)
+        {
+            return;
+        }
+
+        ValidateExactComponents(
+            gameObject,
+            new[]
+            {
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image)
+            },
+            errors);
+        Image[] images = gameObject.GetComponents<Image>();
+
+        if (images.Length != 1)
+        {
+            errors.Add(
+                $"{objectName} Image component count expected 1 but was " +
+                $"{images.Length}.");
+        }
+
+        Image image = images.Length == 1 ? images[0] : null;
+
+        if (image != null)
+        {
+            if (!image.enabled)
+            {
+                errors.Add(
+                    $"{objectName} Image enabled expected true but was " +
+                    "false.");
+            }
+
+            if (image.sprite != null)
+            {
+                errors.Add(
+                    $"{objectName} Image sprite expected null but was " +
+                    $"{image.sprite.name}.");
+            }
+
+            if (image.overrideSprite != null)
+            {
+                errors.Add(
+                    $"{objectName} Image overrideSprite expected null but " +
+                    $"was {image.overrideSprite.name}.");
+            }
+
+            if (!HasNoSerializedCustomMaterial(image))
+            {
+                errors.Add(
+                    $"{objectName} Image serialized custom material " +
+                    "expected null but was " +
+                    $"{DescribeSerializedCustomMaterial(image)}.");
+            }
+
+            if (image.type != Image.Type.Simple)
+            {
+                errors.Add(
+                    $"{objectName} Image type expected {Image.Type.Simple} " +
+                    $"but was {image.type}.");
+            }
+
+            if (image.raycastTarget != expectedRaycastTarget)
+            {
+                errors.Add(
+                    $"{objectName} Image raycastTarget expected " +
+                    $"{FormatBool(expectedRaycastTarget)} but was " +
+                    $"{FormatBool(image.raycastTarget)}.");
+            }
+
+            if (!image.maskable)
+            {
+                errors.Add(
+                    $"{objectName} Image maskable expected true but was " +
+                    "false.");
+            }
+
+            if (!ApproximatelyColor(image.color, expectedColor))
+            {
+                errors.Add(
+                    $"{objectName} Image color expected " +
+                    $"{FormatColor(expectedColor)} but was " +
+                    $"{FormatColor(image.color)}.");
+            }
+        }
+
+        if (fullStretch)
+        {
+            ValidateFullStretchRect(gameObject, errors);
+        }
+        else
+        {
+            ValidateCenteredRect(
+                gameObject,
+                expectedPosition,
+                expectedSize,
+                errors);
+        }
+    }
+
+    private static bool HasNoSerializedCustomMaterial(Graphic graphic)
+    {
+        if (graphic == null)
+        {
+            return false;
+        }
+
+        SerializedObject serializedGraphic =
+            new SerializedObject(graphic);
+        serializedGraphic.Update();
+        SerializedProperty materialProperty =
+            serializedGraphic.FindProperty("m_Material");
+        return materialProperty != null &&
+            materialProperty.objectReferenceValue == null;
+    }
+
+    private static string DescribeSerializedCustomMaterial(
+        Graphic graphic)
+    {
+        if (graphic == null)
+        {
+            return "<null Graphic>";
+        }
+
+        SerializedObject serializedGraphic =
+            new SerializedObject(graphic);
+        serializedGraphic.Update();
+        SerializedProperty materialProperty =
+            serializedGraphic.FindProperty("m_Material");
+
+        if (materialProperty == null)
+        {
+            return "<missing m_Material property>";
+        }
+
+        Object material = materialProperty.objectReferenceValue;
+        return material == null ? "null" : material.name;
+    }
+
+    private static bool ApproximatelyColor(
+        Color actual,
+        Color expected)
+    {
+        return Mathf.Approximately(actual.r, expected.r) &&
+            Mathf.Approximately(actual.g, expected.g) &&
+            Mathf.Approximately(actual.b, expected.b) &&
+            Mathf.Approximately(actual.a, expected.a);
+    }
+
+    private static string FormatColor(Color color)
+    {
+        return
+            $"({color.r:0.000}, {color.g:0.000}, " +
+            $"{color.b:0.000}, {color.a:0.000})";
+    }
+
+    private static string FormatBool(bool value)
+    {
+        return value ? "true" : "false";
+    }
+
+    private static void ValidateReleaseText(
+        ReleaseMenuContext context,
+        string objectName,
+        string expectedContent,
+        Vector2 expectedPosition,
+        Vector2 expectedSize,
+        float expectedFontSize,
+        FontStyles expectedFontStyle,
+        Color expectedColor,
+        List<string> errors)
+    {
+        GameObject gameObject = FindSingleNamedUnchecked(
+            context.TargetScene,
+            objectName);
+
+        if (gameObject == null)
+        {
+            return;
+        }
+
+        ValidateExactComponents(
+            gameObject,
+            new[]
+            {
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TextMeshProUGUI)
+            },
+            errors);
+        TMP_Text text = gameObject.GetComponent<TMP_Text>();
+
+        if (text == null ||
+            text.text != expectedContent ||
+            text.font != context.FontAsset ||
+            text.fontSharedMaterial != context.FontMaterial ||
+            text.fontSize != expectedFontSize ||
+            text.fontStyle != expectedFontStyle ||
+            text.color != expectedColor ||
+            text.alignment != TextAlignmentOptions.Center ||
+            text.raycastTarget)
+        {
+            errors.Add($"{objectName} TMP settings are invalid.");
+        }
+
+        ValidateCenteredRect(
+            gameObject,
+            expectedPosition,
+            expectedSize,
+            errors);
+    }
+
+    private static void ValidateFullStretchRect(
+        GameObject gameObject,
+        List<string> errors)
+    {
+        if (gameObject == null)
+        {
+            return;
+        }
+
+        RectTransform rectTransform =
+            gameObject.GetComponent<RectTransform>();
+
+        if (rectTransform == null ||
+            rectTransform.anchorMin != Vector2.zero ||
+            rectTransform.anchorMax != Vector2.one ||
+            rectTransform.pivot != new Vector2(0.5f, 0.5f) ||
+            rectTransform.anchoredPosition3D != Vector3.zero ||
+            rectTransform.sizeDelta != Vector2.zero ||
+            rectTransform.offsetMin != Vector2.zero ||
+            rectTransform.offsetMax != Vector2.zero ||
+            rectTransform.localScale != Vector3.one ||
+            rectTransform.localRotation != Quaternion.identity)
+        {
+            errors.Add(
+                $"{GetHierarchyPath(gameObject)} full-stretch " +
+                "RectTransform is invalid.");
+        }
+    }
+
+    private static void ValidateCenteredRect(
+        GameObject gameObject,
+        Vector2 expectedPosition,
+        Vector2 expectedSize,
+        List<string> errors)
+    {
+        if (gameObject == null)
+        {
+            return;
+        }
+
+        RectTransform rectTransform =
+            gameObject.GetComponent<RectTransform>();
+        Vector2 centered = new Vector2(0.5f, 0.5f);
+
+        if (rectTransform == null ||
+            rectTransform.anchorMin != centered ||
+            rectTransform.anchorMax != centered ||
+            rectTransform.pivot != centered ||
+            rectTransform.anchoredPosition != expectedPosition ||
+            rectTransform.sizeDelta != expectedSize ||
+            rectTransform.localScale != Vector3.one ||
+            rectTransform.localRotation != Quaternion.identity)
+        {
+            errors.Add(
+                $"{GetHierarchyPath(gameObject)} centered " +
+                "RectTransform is invalid.");
+        }
+    }
+
+    private static void ValidateReleaseButton(
+        ReleaseMenuContext context,
+        Button button,
+        string expectedLabel,
+        Vector2 expectedPosition,
+        Vector2 expectedSize,
+        Color normalColor,
+        List<string> errors)
+    {
+        if (button == null)
+        {
+            errors.Add($"Release menu button {expectedLabel} is missing.");
+            return;
+        }
+
+        ValidateExactComponents(
+            button.gameObject,
+            new[]
+            {
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(Button)
+            },
+            errors);
+        ValidateCenteredRect(
+            button.gameObject,
+            expectedPosition,
+            expectedSize,
+            errors);
+
+        if (button.transform.childCount != 1 ||
+            button.transform.GetChild(0).name != "Label")
+        {
+            errors.Add(
+                $"{button.name} must contain exactly one direct Label.");
+            return;
+        }
+
+        TMP_Text label = button.transform.GetChild(0)
+            .GetComponent<TMP_Text>();
+        ValidateExactComponents(
+            button.transform.GetChild(0).gameObject,
+            new[]
+            {
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(TextMeshProUGUI)
+            },
+            errors);
+        ValidateFullStretchRect(
+            button.transform.GetChild(0).gameObject,
+            errors);
+        Image[] buttonImages = button.GetComponents<Image>();
+        Image image =
+            buttonImages.Length == 1 ? buttonImages[0] : null;
+        ColorBlock colors = button.colors;
+
+        if (label == null ||
+            label.text != expectedLabel ||
+            label.font != context.FontAsset ||
+            label.fontSharedMaterial != context.FontMaterial ||
+            label.fontSize != 28f ||
+            label.fontStyle != FontStyles.Bold ||
+            label.color != Color.white ||
+            label.raycastTarget)
+        {
+            errors.Add($"{button.name} Label settings are invalid.");
+        }
+
+        if (buttonImages.Length != 1)
+        {
+            errors.Add(
+                $"{button.name} Image component count expected 1 but was " +
+                $"{buttonImages.Length}.");
+        }
+
+        if (image != null)
+        {
+            if (!image.enabled)
+            {
+                errors.Add(
+                    $"{button.name} Image enabled expected true but was " +
+                    "false.");
+            }
+
+            if (image.sprite != null)
+            {
+                errors.Add(
+                    $"{button.name} Image sprite expected null but was " +
+                    $"{image.sprite.name}.");
+            }
+
+            if (image.overrideSprite != null)
+            {
+                errors.Add(
+                    $"{button.name} Image overrideSprite expected null but " +
+                    $"was {image.overrideSprite.name}.");
+            }
+
+            if (!HasNoSerializedCustomMaterial(image))
+            {
+                errors.Add(
+                    $"{button.name} Image serialized custom material " +
+                    "expected null but was " +
+                    $"{DescribeSerializedCustomMaterial(image)}.");
+            }
+
+            if (image.type != Image.Type.Simple)
+            {
+                errors.Add(
+                    $"{button.name} Image type expected " +
+                    $"{Image.Type.Simple} but was {image.type}.");
+            }
+
+            if (!image.raycastTarget)
+            {
+                errors.Add(
+                    $"{button.name} Image raycastTarget expected true but " +
+                    "was false.");
+            }
+
+            if (!image.maskable)
+            {
+                errors.Add(
+                    $"{button.name} Image maskable expected true but was " +
+                    "false.");
+            }
+
+            if (!ApproximatelyColor(image.color, Color.white))
+            {
+                errors.Add(
+                    $"{button.name} Image color expected " +
+                    $"{FormatColor(Color.white)} but was " +
+                    $"{FormatColor(image.color)}.");
+            }
+
+            if (button.targetGraphic != image)
+            {
+                string actualTarget = button.targetGraphic == null
+                    ? "null"
+                    : button.targetGraphic.name;
+                errors.Add(
+                    $"{button.name} Button targetGraphic expected its " +
+                    $"Image but was {actualTarget}.");
+            }
+        }
+
+        if (button.transition != Selectable.Transition.ColorTint)
+        {
+            errors.Add(
+                $"{button.name} Button transition expected " +
+                $"{Selectable.Transition.ColorTint} but was " +
+                $"{button.transition}.");
+        }
+
+        if (button.navigation.mode != Navigation.Mode.Automatic)
+        {
+            errors.Add(
+                $"{button.name} Button navigation.mode expected " +
+                $"{Navigation.Mode.Automatic} but was " +
+                $"{button.navigation.mode}.");
+        }
+
+        Color expectedHighlighted =
+            MultiplyRgbPreserveAlpha(normalColor, 1.18f);
+        Color expectedPressed =
+            MultiplyRgbPreserveAlpha(normalColor, 0.78f);
+        Color expectedDisabled =
+            new Color(0.16f, 0.18f, 0.20f, 0.75f);
+
+        if (!ApproximatelyColor(colors.normalColor, normalColor))
+        {
+            errors.Add(
+                $"{button.name} Button colors.normalColor expected " +
+                $"{FormatColor(normalColor)} but was " +
+                $"{FormatColor(colors.normalColor)}.");
+        }
+
+        if (!ApproximatelyColor(
+                colors.highlightedColor,
+                expectedHighlighted))
+        {
+            errors.Add(
+                $"{button.name} Button colors.highlightedColor expected " +
+                $"{FormatColor(expectedHighlighted)} but was " +
+                $"{FormatColor(colors.highlightedColor)}.");
+        }
+
+        if (!ApproximatelyColor(colors.pressedColor, expectedPressed))
+        {
+            errors.Add(
+                $"{button.name} Button colors.pressedColor expected " +
+                $"{FormatColor(expectedPressed)} but was " +
+                $"{FormatColor(colors.pressedColor)}.");
+        }
+
+        if (!ApproximatelyColor(
+                colors.selectedColor,
+                expectedHighlighted))
+        {
+            errors.Add(
+                $"{button.name} Button colors.selectedColor expected " +
+                $"{FormatColor(expectedHighlighted)} but was " +
+                $"{FormatColor(colors.selectedColor)}.");
+        }
+
+        if (!ApproximatelyColor(colors.disabledColor, expectedDisabled))
+        {
+            errors.Add(
+                $"{button.name} Button colors.disabledColor expected " +
+                $"{FormatColor(expectedDisabled)} but was " +
+                $"{FormatColor(colors.disabledColor)}.");
+        }
+
+        if (!Mathf.Approximately(colors.colorMultiplier, 1f))
+        {
+            errors.Add(
+                $"{button.name} Button colors.colorMultiplier expected 1 " +
+                $"but was {colors.colorMultiplier}.");
+        }
+
+        if (!Mathf.Approximately(colors.fadeDuration, 0.08f))
+        {
+            errors.Add(
+                $"{button.name} Button colors.fadeDuration expected 0.08 " +
+                $"but was {colors.fadeDuration}.");
+        }
+    }
+
+    private static void ValidateReleaseMenuControllerWiring(
+        ReleaseMenuContext context,
+        List<string> errors)
+    {
+        if (context.MenuController == null)
+        {
+            errors.Add("CodebreakerMenuController is missing.");
+            return;
+        }
+
+        SerializedObject serializedController =
+            new SerializedObject(context.MenuController);
+        serializedController.Update();
+        ValidateObjectReference(
+            serializedController,
+            "gameController",
+            context.GameController,
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "globalTimer",
+            context.GlobalTimer,
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "equationInteraction",
+            context.EquationInteraction,
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "gameplayHudRoot",
+            context.HudCanvas,
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "mainMenuRoot",
+            FindSingleNamedUnchecked(
+                context.TargetScene,
+                "MainMenuRoot"),
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "pauseMenuRoot",
+            FindSingleNamedUnchecked(
+                context.TargetScene,
+                "PauseMenuRoot"),
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "playButton",
+            context.PlayButton,
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "resumeButton",
+            context.ResumeButton,
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "retryButton",
+            context.RetryButton,
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "mainQuitButton",
+            context.MainQuitButton,
+            errors);
+        ValidateObjectReference(
+            serializedController,
+            "pauseQuitButton",
+            context.PauseQuitButton,
+            errors);
+    }
+
+    private static void ValidateReleaseButtonCallback(
+        Button button,
+        CodebreakerMenuController target,
+        string methodName,
+        List<string> errors)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        if (button.onClick.GetPersistentEventCount() != 1 ||
+            button.onClick.GetPersistentTarget(0) != target ||
+            button.onClick.GetPersistentMethodName(0) != methodName)
+        {
+            errors.Add(
+                $"{button.name} must have exactly one persistent callback " +
+                $"to CodebreakerMenuController.{methodName}.");
+        }
+    }
+
+    private static void ValidateExactComponents(
+        GameObject gameObject,
+        Type[] expectedTypes,
+        List<string> errors)
+    {
+        if (gameObject == null)
+        {
+            return;
+        }
+
+        Component[] components = gameObject.GetComponents<Component>();
+
+        if (components.Length != expectedTypes.Length)
+        {
+            errors.Add(
+                $"{GetHierarchyPath(gameObject)} has " +
+                $"{components.Length} components; expected " +
+                $"{expectedTypes.Length}.");
+            return;
+        }
+
+        foreach (Type expectedType in expectedTypes)
+        {
+            int count = 0;
+
+            foreach (Component component in components)
+            {
+                if (component != null &&
+                    expectedType.IsInstanceOfType(component))
+                {
+                    count++;
+                }
+            }
+
+            if (count != 1)
+            {
+                errors.Add(
+                    $"{GetHierarchyPath(gameObject)} must contain exactly " +
+                    $"one {expectedType.Name}; found {count}.");
+            }
+        }
+    }
+
+    private static void ValidateDirectChildren(
+        GameObject parent,
+        List<string> errors,
+        params GameObject[] expectedChildren)
+    {
+        if (parent == null)
+        {
+            return;
+        }
+
+        if (parent.transform.childCount != expectedChildren.Length)
+        {
+            errors.Add(
+                $"{GetHierarchyPath(parent)} has " +
+                $"{parent.transform.childCount} direct children; expected " +
+                $"{expectedChildren.Length}.");
+        }
+
+        foreach (GameObject child in expectedChildren)
+        {
+            int expectedIndex = Array.IndexOf(expectedChildren, child);
+
+            if (child == null ||
+                child.transform.parent != parent.transform ||
+                child.transform.GetSiblingIndex() != expectedIndex)
+            {
+                errors.Add(
+                    $"{GetHierarchyPath(parent)} has an invalid child " +
+                    "hierarchy.");
+                return;
+            }
+        }
+    }
+
+    private static GameObject FindSingleNamedUnchecked(
+        Scene scene,
+        string objectName)
+    {
+        List<GameObject> matches = FindAllNamed(scene, objectName);
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    private static List<T> GetSceneComponents<T>(Scene scene)
+        where T : Component
+    {
+        List<T> components = new List<T>();
+
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            components.AddRange(root.GetComponentsInChildren<T>(true));
+        }
+
+        return components;
+    }
+
+    private static void ReportReleaseMenuFailure(string message)
+    {
+        Debug.LogError(message);
+        EditorUtility.DisplayDialog(
+            ReleaseMenuDialogTitle,
+            message,
+            "OK");
+    }
+
+    private static void ReportReleaseMenuFailures(List<string> errors)
+    {
+        foreach (string error in errors)
+        {
+            Debug.LogError(error);
+        }
+
+        ReportReleaseMenuFailure(
+            "CODEBREAKER RELEASE MENU VALIDATION FAILED\n\n- " +
+            string.Join("\n- ", errors));
+    }
+
     private static void ReportRefusal(string message)
     {
         Debug.LogError(message);
@@ -3996,6 +6516,29 @@ public static class CodebreakerTutorialUIPass
             string.Join("\n- ", errors);
         Debug.LogError(report);
         EditorUtility.DisplayDialog(DialogTitle, report, "OK");
+    }
+
+    private sealed class ReleaseMenuContext
+    {
+        public Scene TargetScene;
+        public CodebreakerGameController GameController;
+        public GlobalBombTimer GlobalTimer;
+        public CodebreakerEquationInteractionController EquationInteraction;
+        public CodebreakerHUD Hud;
+        public EventSystem EventSystem;
+        public GameObject HudCanvas;
+        public GameObject BombBackground;
+        public GameObject ReleaseCanvas;
+        public TMP_FontAsset FontAsset;
+        public Material FontMaterial;
+        public CodebreakerMenuController MenuController;
+        public Button PlayButton;
+        public Button ResumeButton;
+        public Button RetryButton;
+        public Button MainQuitButton;
+        public Button PauseQuitButton;
+        public readonly List<PreservedHierarchyState> PreservedStates =
+            new List<PreservedHierarchyState>();
     }
 
     private sealed class TutorialContext

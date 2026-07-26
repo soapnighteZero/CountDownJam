@@ -65,6 +65,13 @@ public class CodebreakerEquationEntryController : MonoBehaviour
 
     private void Update()
     {
+        if (gameController == null ||
+            gameController.IsGameplayInputBlocked ||
+            gameController.IsGameplayPaused)
+        {
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
 
         if (keyboard == null ||
@@ -439,6 +446,13 @@ public class CodebreakerEquationEntryController : MonoBehaviour
 
         while (elapsed < successAdvanceDelaySeconds)
         {
+            if (gameController != null &&
+                gameController.IsGameplayPaused)
+            {
+                yield return null;
+                continue;
+            }
+
             elapsed += Time.unscaledDeltaTime;
             yield return null;
         }
@@ -539,6 +553,8 @@ public class CodebreakerEquationEntryController : MonoBehaviour
             interactionController != null &&
             !interactionController.IsDragging &&
             gameController != null &&
+            !gameController.IsGameplayInputBlocked &&
+            !gameController.IsGameplayPaused &&
             !gameController.IsTerminalState &&
             gameController.CurrentPhase == CodebreakerPhase.EquationEntry;
     }
