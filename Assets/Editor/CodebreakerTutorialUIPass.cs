@@ -16,19 +16,18 @@ public static class CodebreakerTutorialUIPass
     private const string DialogTitle = "Codebreaker Tutorial UI Pass";
     private const string UndoName = "Build Codebreaker Tutorial UI Pass";
     private const string PhaseOneInstruction =
-        "CLICK A SEGMENT TO REMOVE ONE LAYER\n" +
-        "USE ALL 4 HITS - LEAVE ONE VALID GREEN DIGIT\n" +
-        "RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT";
+        "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
+        "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
     private const string PhaseTwoInstruction =
         "MOVE SEGMENTS BETWEEN THE TWO DISPLAYS AND BUFFER\n" +
         "MAKE THE EQUATION TRUE, THEN PRESS SPACE";
     private const string SuccessReport =
-        "CODEBREAKER TUTORIAL UI LAYOUT REFINED\n\n" +
-        "Redundant A and B labels removed\n" +
-        "Large equation vertically aligned\n" +
-        "Equals target resized and repositioned\n" +
-        "Support text moved down\n" +
-        "Instruction moved above buffer";
+        "CODEBREAKER USABILITY FEEDBACK PASS BUILT\n\n" +
+        "Two Buffer slots added\n" +
+        "Central equation-ready feedback wired\n" +
+        "Buffer-full feedback moved near Buffer\n" +
+        "Phase 1 objective hierarchy improved\n" +
+        "Gameplay rules preserved";
 
     private static readonly StaticLabelLayout PlusLabelLayout =
         new StaticLabelLayout(
@@ -37,6 +36,20 @@ public static class CodebreakerTutorialUIPass
             new Vector2(0f, -80f),
             new Vector2(130f, 140f),
             96f);
+    private static readonly StaticLabelLayout ReadyTextLayout =
+        new StaticLabelLayout(
+            "EquationReadyText",
+            string.Empty,
+            new Vector2(500f, -160f),
+            new Vector2(420f, 46f),
+            23f);
+    private static readonly StaticLabelLayout BufferFeedbackLayout =
+        new StaticLabelLayout(
+            "BufferFeedbackText",
+            string.Empty,
+            new Vector2(0f, -355f),
+            new Vector2(900f, 42f),
+            20f);
 
     [MenuItem(MenuPath)]
     private static void BuildTutorialUiPass()
@@ -175,6 +188,10 @@ public static class CodebreakerTutorialUIPass
             PuzzleController =
                 RequireUniqueComponent<LayeredDigitPuzzleController>(
                     targetScene,
+                    errors),
+            InventoryTray =
+                RequireUniqueComponent<SegmentInventoryTray>(
+                    targetScene,
                     errors)
         };
 
@@ -260,6 +277,47 @@ public static class CodebreakerTutorialUIPass
                 errors);
         }
 
+        if (context.InventoryTray != null)
+        {
+            context.Inventory = ReadObjectReference<SharedSegmentInventory>(
+                context.InventoryTray,
+                "inventory",
+                errors);
+            context.TokenTemplate =
+                ReadObjectReference<InventorySegmentToken>(
+                    context.InventoryTray,
+                    "tokenTemplate",
+                    errors);
+            context.TokenContainer = ReadObjectReference<Transform>(
+                context.InventoryTray,
+                "tokenContainer",
+                errors);
+            context.CountText = ReadTextReference(
+                context.InventoryTray,
+                "countText",
+                errors);
+        }
+
+        if (context.TokenTemplate != null)
+        {
+            context.TokenVisualObject =
+                context.TokenTemplate.VisualObject;
+
+            if (context.TokenVisualObject == null)
+            {
+                errors.Add(
+                    "SegmentInventoryTray tokenTemplate.VisualObject must " +
+                    "be assigned.");
+            }
+            else if (context.TokenVisualObject
+                .GetComponentsInChildren<SpriteRenderer>(true).Length == 0)
+            {
+                errors.Add(
+                    "SegmentInventoryTray tokenTemplate.VisualObject must " +
+                    "contain at least one SpriteRenderer.");
+            }
+        }
+
         ValidateTextRect(
             context.EntryProgressText,
             "entryProgressText",
@@ -338,6 +396,41 @@ public static class CodebreakerTutorialUIPass
                 errors);
         }
 
+        context.EquationReadyText = FindOptionalUniqueNamed(
+            targetScene,
+            ReadyTextLayout.Name,
+            errors);
+        ValidateOptionalTextObject(
+            context.EquationReadyText,
+            context.EquationRoot,
+            ReadyTextLayout.Name,
+            errors);
+
+        context.BufferFeedbackText = FindOptionalUniqueNamed(
+            targetScene,
+            BufferFeedbackLayout.Name,
+            errors);
+        ValidateOptionalTextObject(
+            context.BufferFeedbackText,
+            context.EquationRoot,
+            BufferFeedbackLayout.Name,
+            errors);
+
+        context.BufferCapacitySlotsRoot = FindOptionalUniqueNamed(
+            targetScene,
+            "BufferCapacitySlotsRoot",
+            errors);
+        context.BufferSlotVisual01 = FindOptionalUniqueNamed(
+            targetScene,
+            "BufferSlotVisual_01",
+            errors);
+        context.BufferSlotVisual02 = FindOptionalUniqueNamed(
+            targetScene,
+            "BufferSlotVisual_02",
+            errors);
+
+        ValidateBufferSlotObjects(context, errors);
+
         if (context.EquationRoot != null)
         {
             context.EquationALabelText = FindRemovableLabel(
@@ -367,25 +460,11 @@ public static class CodebreakerTutorialUIPass
             Undo.DestroyObjectImmediate(context.EquationBLabelText);
         }
 
-        GameObject plusObject = context.EquationPlusText;
-
-        if (plusObject == null)
-        {
-            plusObject = Object.Instantiate(
-                context.TargetEquationText.gameObject);
-            plusObject.name = PlusLabelLayout.Name;
-            Undo.RegisterCreatedObjectUndo(
-                plusObject,
-                $"Create {PlusLabelLayout.Name}");
-        }
-
-        if (plusObject.transform.parent != context.EquationRoot.transform)
-        {
-            Undo.SetTransformParent(
-                plusObject.transform,
-                context.EquationRoot.transform,
-                $"Parent {PlusLabelLayout.Name}");
-        }
+        GameObject plusObject = CreateOrRepairTextObject(
+            context.EquationPlusText,
+            context.TargetEquationText.gameObject,
+            context.EquationRoot.transform,
+            PlusLabelLayout);
 
         ConfigureText(
             plusObject.GetComponent<RectTransform>(),
@@ -397,6 +476,44 @@ public static class CodebreakerTutorialUIPass
             setVerticalMiddle: true,
             content: PlusLabelLayout.Text,
             setOverflow: true);
+        SetActiveWithUndo(plusObject, true);
+
+        GameObject readyObject = CreateOrRepairTextObject(
+            context.EquationReadyText,
+            context.TargetEquationText.gameObject,
+            context.EquationRoot.transform,
+            ReadyTextLayout);
+        TMP_Text readyText = readyObject.GetComponent<TMP_Text>();
+        ConfigureText(
+            readyObject.GetComponent<RectTransform>(),
+            readyText,
+            ReadyTextLayout.Position,
+            ReadyTextLayout.Size,
+            ReadyTextLayout.FontSize,
+            HorizontalAlignmentOptions.Center,
+            setVerticalMiddle: true,
+            content: ReadyTextLayout.Text,
+            setOverflow: true);
+        SetActiveWithUndo(readyObject, false);
+
+        GameObject bufferFeedbackObject = CreateOrRepairTextObject(
+            context.BufferFeedbackText,
+            context.FeedbackText.gameObject,
+            context.EquationRoot.transform,
+            BufferFeedbackLayout);
+        TMP_Text bufferFeedbackText =
+            bufferFeedbackObject.GetComponent<TMP_Text>();
+        ConfigureText(
+            bufferFeedbackObject.GetComponent<RectTransform>(),
+            bufferFeedbackText,
+            BufferFeedbackLayout.Position,
+            BufferFeedbackLayout.Size,
+            BufferFeedbackLayout.FontSize,
+            HorizontalAlignmentOptions.Center,
+            setVerticalMiddle: true,
+            content: BufferFeedbackLayout.Text,
+            setOverflow: true);
+        SetActiveWithUndo(bufferFeedbackObject, false);
 
         ConfigureText(
             context.TargetEquationText.GetComponent<RectTransform>(),
@@ -433,7 +550,7 @@ public static class CodebreakerTutorialUIPass
         ConfigureText(
             context.EquationInstructionText.GetComponent<RectTransform>(),
             context.EquationInstructionText,
-            new Vector2(0f, -325f),
+            new Vector2(0f, -290f),
             new Vector2(1250f, 60f),
             18f,
             HorizontalAlignmentOptions.Center,
@@ -451,6 +568,500 @@ public static class CodebreakerTutorialUIPass
             setVerticalMiddle: true,
             content: PhaseOneInstruction,
             setOverflow: true);
+        ConfigureAsNonInteractive(context.PuzzleProgressText);
+        ConfigureAsNonInteractive(context.HitsLeftText);
+        ConfigureAsNonInteractive(context.PuzzleFeedbackText);
+        ConfigureAsNonInteractive(context.CountText);
+
+        ConfigureTrayLayout(context.InventoryTray);
+        GameObject slotsRoot = CreateOrRepairSlotsRoot(context);
+        GameObject slot01 = CreateOrRepairBufferSlot(
+            context.BufferSlotVisual01,
+            context.TokenVisualObject,
+            slotsRoot.transform,
+            "BufferSlotVisual_01",
+            new Vector3(-0.75f, 0.15f, 0f));
+        GameObject slot02 = CreateOrRepairBufferSlot(
+            context.BufferSlotVisual02,
+            context.TokenVisualObject,
+            slotsRoot.transform,
+            "BufferSlotVisual_02",
+            new Vector3(0.75f, 0.15f, 0f));
+
+        AssignHudReferences(
+            context.EquationHud,
+            plusObject.GetComponent<TMP_Text>(),
+            readyText,
+            bufferFeedbackText);
+        ValidateAppliedState(
+            context,
+            plusObject,
+            readyObject,
+            bufferFeedbackObject,
+            slotsRoot,
+            slot01,
+            slot02);
+    }
+
+    private static void ConfigureAsNonInteractive(TMP_Text text)
+    {
+        Undo.RecordObject(text, UndoName);
+        text.raycastTarget = false;
+    }
+
+    private static GameObject CreateOrRepairTextObject(
+        GameObject existingObject,
+        GameObject template,
+        Transform parent,
+        StaticLabelLayout layout)
+    {
+        GameObject textObject = existingObject;
+
+        if (textObject == null)
+        {
+            textObject = Object.Instantiate(template);
+            textObject.name = layout.Name;
+            Undo.RegisterCreatedObjectUndo(
+                textObject,
+                $"Create {layout.Name}");
+        }
+
+        if (textObject.transform.parent != parent)
+        {
+            Undo.SetTransformParent(
+                textObject.transform,
+                parent,
+                $"Parent {layout.Name}");
+        }
+
+        return textObject;
+    }
+
+    private static void SetActiveWithUndo(
+        GameObject gameObject,
+        bool active)
+    {
+        if (gameObject.activeSelf == active)
+        {
+            return;
+        }
+
+        Undo.RecordObject(gameObject, UndoName);
+        gameObject.SetActive(active);
+    }
+
+    private static void ConfigureTrayLayout(
+        SegmentInventoryTray inventoryTray)
+    {
+        Undo.RecordObject(inventoryTray, UndoName);
+        SerializedObject serializedTray =
+            new SerializedObject(inventoryTray);
+        serializedTray.Update();
+        RequireSerializedProperty(
+            serializedTray,
+            "maximumVisibleTokens").intValue = 2;
+        RequireSerializedProperty(
+            serializedTray,
+            "columns").intValue = 2;
+        RequireSerializedProperty(
+            serializedTray,
+            "firstTokenLocalPosition").vector2Value =
+                new Vector2(-0.75f, 0.15f);
+        RequireSerializedProperty(
+            serializedTray,
+            "tokenSpacing").vector2Value =
+                new Vector2(1.5f, 0f);
+        serializedTray.ApplyModifiedProperties();
+    }
+
+    private static GameObject CreateOrRepairSlotsRoot(
+        TutorialContext context)
+    {
+        GameObject slotsRoot = context.BufferCapacitySlotsRoot;
+
+        if (slotsRoot == null)
+        {
+            slotsRoot = new GameObject("BufferCapacitySlotsRoot");
+            Undo.RegisterCreatedObjectUndo(
+                slotsRoot,
+                "Create BufferCapacitySlotsRoot");
+        }
+
+        if (slotsRoot.transform.parent != context.TokenContainer)
+        {
+            Undo.SetTransformParent(
+                slotsRoot.transform,
+                context.TokenContainer,
+                "Parent BufferCapacitySlotsRoot");
+        }
+
+        Undo.RecordObject(slotsRoot.transform, UndoName);
+        slotsRoot.transform.localPosition = Vector3.zero;
+        slotsRoot.transform.localRotation = Quaternion.identity;
+        slotsRoot.transform.localScale = Vector3.one;
+        SetActiveWithUndo(slotsRoot, true);
+        return slotsRoot;
+    }
+
+    private static GameObject CreateOrRepairBufferSlot(
+        GameObject existingObject,
+        GameObject sourceVisual,
+        Transform parent,
+        string objectName,
+        Vector3 localPosition)
+    {
+        GameObject slotObject = existingObject;
+
+        if (slotObject == null)
+        {
+            slotObject = Object.Instantiate(sourceVisual);
+            slotObject.name = objectName;
+            Undo.RegisterCreatedObjectUndo(
+                slotObject,
+                $"Create {objectName}");
+        }
+
+        if (slotObject.transform.parent != parent)
+        {
+            Undo.SetTransformParent(
+                slotObject.transform,
+                parent,
+                $"Parent {objectName}");
+        }
+
+        Undo.RecordObject(slotObject.transform, UndoName);
+        slotObject.transform.localPosition = localPosition;
+        slotObject.transform.localRotation = Quaternion.identity;
+        slotObject.transform.localScale =
+            sourceVisual.transform.localScale;
+
+        InventorySegmentToken[] tokenComponents =
+            slotObject.GetComponentsInChildren<InventorySegmentToken>(true);
+
+        foreach (InventorySegmentToken component in tokenComponents)
+        {
+            Undo.DestroyObjectImmediate(component);
+        }
+
+        InventoryDropZone[] dropZones =
+            slotObject.GetComponentsInChildren<InventoryDropZone>(true);
+
+        foreach (InventoryDropZone component in dropZones)
+        {
+            Undo.DestroyObjectImmediate(component);
+        }
+
+        foreach (Collider2D collider in
+            slotObject.GetComponentsInChildren<Collider2D>(true))
+        {
+            Undo.RecordObject(collider, UndoName);
+            collider.enabled = false;
+        }
+
+        foreach (Rigidbody2D rigidbody in
+            slotObject.GetComponentsInChildren<Rigidbody2D>(true))
+        {
+            Undo.RecordObject(rigidbody, UndoName);
+            rigidbody.simulated = false;
+        }
+
+        foreach (MonoBehaviour behaviour in
+            slotObject.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (behaviour == null)
+            {
+                continue;
+            }
+
+            Undo.RecordObject(behaviour, UndoName);
+            behaviour.enabled = false;
+        }
+
+        SpriteRenderer[] sourceRenderers =
+            sourceVisual.GetComponentsInChildren<SpriteRenderer>(true);
+        SpriteRenderer[] slotRenderers =
+            slotObject.GetComponentsInChildren<SpriteRenderer>(true);
+
+        if (sourceRenderers.Length != slotRenderers.Length)
+        {
+            throw new InvalidOperationException(
+                $"{objectName} SpriteRenderer structure does not match " +
+                "tokenTemplate.VisualObject.");
+        }
+
+        for (int i = 0; i < slotRenderers.Length; i++)
+        {
+            SpriteRenderer sourceRenderer = sourceRenderers[i];
+            SpriteRenderer slotRenderer = slotRenderers[i];
+            Color sourceColor = sourceRenderer.color;
+
+            Undo.RecordObject(slotRenderer, UndoName);
+            slotRenderer.sprite = sourceRenderer.sprite;
+            slotRenderer.sharedMaterial = sourceRenderer.sharedMaterial;
+            slotRenderer.sortingLayerID =
+                sourceRenderer.sortingLayerID;
+            slotRenderer.enabled = true;
+            slotRenderer.color = new Color(
+                sourceColor.r,
+                sourceColor.g,
+                sourceColor.b,
+                0.18f);
+            slotRenderer.sortingOrder =
+                sourceRenderer.sortingOrder - 1;
+        }
+
+        SetActiveWithUndo(slotObject, true);
+        return slotObject;
+    }
+
+    private static void AssignHudReferences(
+        CodebreakerEquationHUD equationHud,
+        TMP_Text operatorText,
+        TMP_Text readyText,
+        TMP_Text bufferFeedbackText)
+    {
+        Undo.RecordObject(equationHud, UndoName);
+        SerializedObject serializedHud =
+            new SerializedObject(equationHud);
+        serializedHud.Update();
+
+        SerializedProperty operatorProperty =
+            RequireSerializedProperty(
+                serializedHud,
+                "equationOperatorText");
+        SerializedProperty readyProperty =
+            RequireSerializedProperty(
+                serializedHud,
+                "equationReadyText");
+        SerializedProperty bufferProperty =
+            RequireSerializedProperty(
+                serializedHud,
+                "bufferFeedbackText");
+
+        operatorProperty.objectReferenceValue = operatorText;
+        readyProperty.objectReferenceValue = readyText;
+        bufferProperty.objectReferenceValue = bufferFeedbackText;
+        serializedHud.ApplyModifiedProperties();
+        serializedHud.Update();
+
+        if (operatorProperty.objectReferenceValue != operatorText ||
+            readyProperty.objectReferenceValue != readyText ||
+            bufferProperty.objectReferenceValue != bufferFeedbackText)
+        {
+            throw new InvalidOperationException(
+                "CodebreakerEquationHUD serialized feedback references " +
+                "could not be assigned.");
+        }
+    }
+
+    private static SerializedProperty RequireSerializedProperty(
+        SerializedObject serializedObject,
+        string propertyName)
+    {
+        SerializedProperty property =
+            serializedObject.FindProperty(propertyName);
+
+        if (property == null)
+        {
+            throw new InvalidOperationException(
+                $"{serializedObject.targetObject.GetType().Name} has no " +
+                $"serialized property {propertyName}.");
+        }
+
+        return property;
+    }
+
+    private static void ValidateAppliedState(
+        TutorialContext context,
+        GameObject plusObject,
+        GameObject readyObject,
+        GameObject bufferFeedbackObject,
+        GameObject slotsRoot,
+        GameObject slot01,
+        GameObject slot02)
+    {
+        List<string> errors = new List<string>();
+        RequireExactNamedCount(
+            context.TargetScene,
+            "EquationALabelText",
+            0,
+            errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            "EquationBLabelText",
+            0,
+            errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            PlusLabelLayout.Name,
+            1,
+            errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            ReadyTextLayout.Name,
+            1,
+            errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            BufferFeedbackLayout.Name,
+            1,
+            errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            "BufferCapacitySlotsRoot",
+            1,
+            errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            "BufferSlotVisual_01",
+            1,
+            errors);
+        RequireExactNamedCount(
+            context.TargetScene,
+            "BufferSlotVisual_02",
+            1,
+            errors);
+
+        if (plusObject.transform.parent !=
+                context.EquationRoot.transform ||
+            readyObject.transform.parent !=
+                context.EquationRoot.transform ||
+            bufferFeedbackObject.transform.parent !=
+                context.EquationRoot.transform)
+        {
+            errors.Add(
+                "Equation feedback text objects must be direct children of " +
+                "EquationEntryRoot.");
+        }
+
+        if (slotsRoot.transform.parent != context.TokenContainer ||
+            slot01.transform.parent != slotsRoot.transform ||
+            slot02.transform.parent != slotsRoot.transform)
+        {
+            errors.Add(
+                "Buffer capacity slot hierarchy is incorrect.");
+        }
+
+        if (slotsRoot.transform.localPosition != Vector3.zero ||
+            slotsRoot.transform.localRotation != Quaternion.identity ||
+            slotsRoot.transform.localScale != Vector3.one ||
+            !slotsRoot.activeSelf)
+        {
+            errors.Add(
+                "BufferCapacitySlotsRoot transform or active state is " +
+                "invalid.");
+        }
+
+        ValidateTextLayout(
+            plusObject.GetComponent<TMP_Text>(),
+            PlusLabelLayout,
+            PlusLabelLayout.Text,
+            expectedActive: true,
+            errors: errors);
+        ValidateTextLayout(
+            readyObject.GetComponent<TMP_Text>(),
+            ReadyTextLayout,
+            string.Empty,
+            expectedActive: false,
+            errors: errors);
+        ValidateTextLayout(
+            bufferFeedbackObject.GetComponent<TMP_Text>(),
+            BufferFeedbackLayout,
+            string.Empty,
+            expectedActive: false,
+            errors: errors);
+        ValidateTextLayout(
+            context.EquationInstructionText,
+            new StaticLabelLayout(
+                context.EquationInstructionText.gameObject.name,
+                PhaseTwoInstruction,
+                new Vector2(0f, -290f),
+                new Vector2(1250f, 60f),
+                18f),
+            PhaseTwoInstruction,
+            context.EquationInstructionText.gameObject.activeSelf,
+            errors);
+        ValidateTextLayout(
+            context.PuzzleInstructionText,
+            new StaticLabelLayout(
+                context.PuzzleInstructionText.gameObject.name,
+                PhaseOneInstruction,
+                new Vector2(0f, -405f),
+                new Vector2(1400f, 110f),
+                22f),
+            PhaseOneInstruction,
+            context.PuzzleInstructionText.gameObject.activeSelf,
+            errors);
+
+        ValidateTrayLayout(context.InventoryTray, errors);
+        ValidateSlotVisual(
+            slot01,
+            context.TokenVisualObject,
+            "BufferSlotVisual_01",
+            errors);
+        ValidateSlotVisual(
+            slot02,
+            context.TokenVisualObject,
+            "BufferSlotVisual_02",
+            errors);
+
+        SerializedObject serializedHud =
+            new SerializedObject(context.EquationHud);
+        serializedHud.Update();
+        ValidateObjectReference(
+            serializedHud,
+            "equationOperatorText",
+            plusObject.GetComponent<TMP_Text>(),
+            errors);
+        ValidateObjectReference(
+            serializedHud,
+            "equationReadyText",
+            readyObject.GetComponent<TMP_Text>(),
+            errors);
+        ValidateObjectReference(
+            serializedHud,
+            "bufferFeedbackText",
+            bufferFeedbackObject.GetComponent<TMP_Text>(),
+            errors);
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Post-build validation failed:\n- " +
+                string.Join("\n- ", errors));
+        }
+    }
+
+    private static void ValidateTextLayout(
+        TMP_Text text,
+        StaticLabelLayout layout,
+        string expectedText,
+        bool expectedActive,
+        List<string> errors)
+    {
+        RectTransform rectTransform =
+            text.GetComponent<RectTransform>();
+
+        if (rectTransform.anchoredPosition != layout.Position ||
+            rectTransform.sizeDelta != layout.Size ||
+            rectTransform.anchorMin != new Vector2(0.5f, 0.5f) ||
+            rectTransform.anchorMax != new Vector2(0.5f, 0.5f) ||
+            rectTransform.pivot != new Vector2(0.5f, 0.5f) ||
+            rectTransform.localScale != Vector3.one ||
+            rectTransform.localRotation != Quaternion.identity ||
+            !Mathf.Approximately(text.fontSize, layout.FontSize) ||
+            text.horizontalAlignment !=
+                HorizontalAlignmentOptions.Center ||
+            text.verticalAlignment != VerticalAlignmentOptions.Middle ||
+            text.enableAutoSizing ||
+            text.raycastTarget ||
+            text.overflowMode != TextOverflowModes.Overflow ||
+            !text.richText ||
+            text.text != expectedText ||
+            text.gameObject.activeSelf != expectedActive)
+        {
+            errors.Add($"{layout.Name} layout or text settings are invalid.");
+        }
     }
 
     private static void ConfigureSupportText(
@@ -502,6 +1113,7 @@ public static class CodebreakerTutorialUIPass
 
         text.raycastTarget = false;
         text.enableAutoSizing = false;
+        text.richText = true;
 
         if (setOverflow)
         {
@@ -550,6 +1162,46 @@ public static class CodebreakerTutorialUIPass
         return text;
     }
 
+    private static T ReadObjectReference<T>(
+        Object owner,
+        string propertyName,
+        List<string> errors)
+        where T : Object
+    {
+        SerializedObject serializedObject = new SerializedObject(owner);
+        serializedObject.Update();
+        SerializedProperty property =
+            serializedObject.FindProperty(propertyName);
+
+        if (property == null)
+        {
+            errors.Add(
+                $"{owner.GetType().Name} has no serialized property " +
+                $"{propertyName}.");
+            return null;
+        }
+
+        if (property.propertyType !=
+            SerializedPropertyType.ObjectReference)
+        {
+            errors.Add(
+                $"{owner.GetType().Name}.{propertyName} is not an object " +
+                "reference.");
+            return null;
+        }
+
+        T reference = property.objectReferenceValue as T;
+
+        if (reference == null)
+        {
+            errors.Add(
+                $"{owner.GetType().Name}.{propertyName} must reference a " +
+                $"{typeof(T).Name}.");
+        }
+
+        return reference;
+    }
+
     private static void ValidateTextRect(
         TMP_Text text,
         string label,
@@ -559,6 +1211,314 @@ public static class CodebreakerTutorialUIPass
         {
             errors.Add($"{label} is missing a RectTransform.");
         }
+    }
+
+    private static void ValidateOptionalTextObject(
+        GameObject textObject,
+        GameObject equationRoot,
+        string objectName,
+        List<string> errors)
+    {
+        if (textObject == null)
+        {
+            return;
+        }
+
+        RequireComponent<RectTransform>(
+            textObject,
+            objectName,
+            errors);
+        RequireComponent<TMP_Text>(
+            textObject,
+            objectName,
+            errors);
+        RequireComponent<CanvasRenderer>(
+            textObject,
+            objectName,
+            errors);
+
+        if (equationRoot != null &&
+            textObject.transform.parent != equationRoot.transform)
+        {
+            errors.Add(
+                $"{objectName} must be a direct child of " +
+                "EquationEntryRoot.");
+        }
+    }
+
+    private static void ValidateBufferSlotObjects(
+        TutorialContext context,
+        List<string> errors)
+    {
+        foreach (GameObject gameObject in
+            GetSceneGameObjects(context.TargetScene))
+        {
+            if (gameObject.name.StartsWith(
+                    "BufferSlotVisual_",
+                    StringComparison.Ordinal) &&
+                gameObject.name != "BufferSlotVisual_01" &&
+                gameObject.name != "BufferSlotVisual_02")
+            {
+                errors.Add(
+                    $"Unexpected Buffer slot visual named " +
+                    $"{gameObject.name} exists at " +
+                    $"{GetHierarchyPath(gameObject)}.");
+            }
+        }
+
+        if (context.BufferCapacitySlotsRoot != null &&
+            context.TokenContainer != null &&
+            context.BufferCapacitySlotsRoot.transform.parent !=
+                context.TokenContainer)
+        {
+            errors.Add(
+                "BufferCapacitySlotsRoot must be a direct child of the " +
+                "SegmentInventoryTray tokenContainer.");
+        }
+
+        ValidateOptionalSlot(
+            context.BufferSlotVisual01,
+            context.BufferCapacitySlotsRoot,
+            context.TokenVisualObject,
+            "BufferSlotVisual_01",
+            errors);
+        ValidateOptionalSlot(
+            context.BufferSlotVisual02,
+            context.BufferCapacitySlotsRoot,
+            context.TokenVisualObject,
+            "BufferSlotVisual_02",
+            errors);
+    }
+
+    private static void ValidateOptionalSlot(
+        GameObject slotObject,
+        GameObject slotsRoot,
+        GameObject sourceVisual,
+        string objectName,
+        List<string> errors)
+    {
+        if (slotObject == null)
+        {
+            return;
+        }
+
+        if (slotsRoot == null ||
+            slotObject.transform.parent != slotsRoot.transform)
+        {
+            errors.Add(
+                $"{objectName} must be a direct child of " +
+                "BufferCapacitySlotsRoot.");
+        }
+
+        ValidateSlotRendererStructure(
+            slotObject,
+            sourceVisual,
+            objectName,
+            errors);
+    }
+
+    private static void ValidateSlotRendererStructure(
+        GameObject slotObject,
+        GameObject sourceVisual,
+        string objectName,
+        List<string> errors)
+    {
+        if (slotObject == null || sourceVisual == null)
+        {
+            return;
+        }
+
+        int sourceRendererCount =
+            sourceVisual.GetComponentsInChildren<SpriteRenderer>(true).Length;
+        int slotRendererCount =
+            slotObject.GetComponentsInChildren<SpriteRenderer>(true).Length;
+
+        if (slotRendererCount != sourceRendererCount)
+        {
+            errors.Add(
+                $"{objectName} must contain the same SpriteRenderer " +
+                "structure as tokenTemplate.VisualObject.");
+        }
+    }
+
+    private static void ValidateSlotVisual(
+        GameObject slotObject,
+        GameObject sourceVisual,
+        string objectName,
+        List<string> errors)
+    {
+        ValidateSlotRendererStructure(
+            slotObject,
+            sourceVisual,
+            objectName,
+            errors);
+
+        Vector3 expectedPosition =
+            objectName == "BufferSlotVisual_01"
+                ? new Vector3(-0.75f, 0.15f, 0f)
+                : new Vector3(0.75f, 0.15f, 0f);
+
+        if (slotObject.transform.localPosition != expectedPosition ||
+            slotObject.transform.localRotation != Quaternion.identity ||
+            slotObject.transform.localScale !=
+                sourceVisual.transform.localScale ||
+            !slotObject.activeSelf)
+        {
+            errors.Add($"{objectName} transform or active state is invalid.");
+        }
+
+        if (slotObject
+                .GetComponentsInChildren<InventorySegmentToken>(true)
+                .Length > 0 ||
+            slotObject
+                .GetComponentsInChildren<InventoryDropZone>(true)
+                .Length > 0)
+        {
+            errors.Add(
+                $"{objectName} contains a prohibited gameplay component.");
+        }
+
+        foreach (Collider2D collider in
+            slotObject.GetComponentsInChildren<Collider2D>(true))
+        {
+            if (collider.enabled)
+            {
+                errors.Add(
+                    $"{objectName} contains an enabled Collider2D.");
+            }
+        }
+
+        foreach (Rigidbody2D rigidbody in
+            slotObject.GetComponentsInChildren<Rigidbody2D>(true))
+        {
+            if (rigidbody.simulated)
+            {
+                errors.Add(
+                    $"{objectName} contains a simulated Rigidbody2D.");
+            }
+        }
+
+        foreach (MonoBehaviour behaviour in
+            slotObject.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (behaviour != null && behaviour.enabled)
+            {
+                errors.Add(
+                    $"{objectName} contains an enabled gameplay " +
+                    "MonoBehaviour.");
+            }
+        }
+
+        SpriteRenderer[] sourceRenderers =
+            sourceVisual.GetComponentsInChildren<SpriteRenderer>(true);
+        SpriteRenderer[] slotRenderers =
+            slotObject.GetComponentsInChildren<SpriteRenderer>(true);
+        int rendererCount =
+            Mathf.Min(sourceRenderers.Length, slotRenderers.Length);
+
+        for (int i = 0; i < rendererCount; i++)
+        {
+            Color sourceColor = sourceRenderers[i].color;
+            Color slotColor = slotRenderers[i].color;
+
+            if (slotRenderers[i].sprite != sourceRenderers[i].sprite ||
+                slotRenderers[i].sharedMaterial !=
+                    sourceRenderers[i].sharedMaterial ||
+                slotRenderers[i].sortingLayerID !=
+                    sourceRenderers[i].sortingLayerID ||
+                !slotRenderers[i].enabled ||
+                !Mathf.Approximately(slotColor.r, sourceColor.r) ||
+                !Mathf.Approximately(slotColor.g, sourceColor.g) ||
+                !Mathf.Approximately(slotColor.b, sourceColor.b) ||
+                !Mathf.Approximately(slotColor.a, 0.18f) ||
+                slotRenderers[i].sortingOrder >
+                    sourceRenderers[i].sortingOrder - 1)
+            {
+                errors.Add(
+                    $"{objectName} SpriteRenderer {i} is not a valid " +
+                    "capacity silhouette.");
+            }
+        }
+    }
+
+    private static void ValidateTrayLayout(
+        SegmentInventoryTray inventoryTray,
+        List<string> errors)
+    {
+        SerializedObject serializedTray =
+            new SerializedObject(inventoryTray);
+        serializedTray.Update();
+
+        if (RequireSerializedProperty(
+                serializedTray,
+                "maximumVisibleTokens").intValue != 2 ||
+            RequireSerializedProperty(
+                serializedTray,
+                "columns").intValue != 2 ||
+            RequireSerializedProperty(
+                serializedTray,
+                "firstTokenLocalPosition").vector2Value !=
+                new Vector2(-0.75f, 0.15f) ||
+            RequireSerializedProperty(
+                serializedTray,
+                "tokenSpacing").vector2Value !=
+                new Vector2(1.5f, 0f))
+        {
+            errors.Add(
+                "SegmentInventoryTray tutorial token layout is invalid.");
+        }
+    }
+
+    private static void ValidateObjectReference(
+        SerializedObject serializedObject,
+        string propertyName,
+        Object expectedReference,
+        List<string> errors)
+    {
+        SerializedProperty property =
+            serializedObject.FindProperty(propertyName);
+
+        if (property == null ||
+            property.objectReferenceValue != expectedReference)
+        {
+            errors.Add(
+                $"{serializedObject.targetObject.GetType().Name}." +
+                $"{propertyName} does not reference the expected object.");
+        }
+    }
+
+    private static void RequireExactNamedCount(
+        Scene scene,
+        string objectName,
+        int expectedCount,
+        List<string> errors)
+    {
+        int actualCount = FindAllNamed(scene, objectName).Count;
+
+        if (actualCount != expectedCount)
+        {
+            errors.Add(
+                $"{scene.path} contains {actualCount} objects named " +
+                $"{objectName}; expected {expectedCount}.");
+        }
+    }
+
+    private static GameObject FindOptionalUniqueNamed(
+        Scene scene,
+        string objectName,
+        List<string> errors)
+    {
+        List<GameObject> matches = FindAllNamed(scene, objectName);
+
+        if (matches.Count > 1)
+        {
+            errors.Add(
+                $"{scene.path} contains {matches.Count} objects named " +
+                $"{objectName}; expected at most one before repair.");
+            return null;
+        }
+
+        return matches.Count == 1 ? matches[0] : null;
     }
 
     private static GameObject FindUniqueNamed(
@@ -746,6 +1706,12 @@ public static class CodebreakerTutorialUIPass
         public GameObject EquationRoot;
         public CodebreakerEquationHUD EquationHud;
         public LayeredDigitPuzzleController PuzzleController;
+        public SegmentInventoryTray InventoryTray;
+        public SharedSegmentInventory Inventory;
+        public InventorySegmentToken TokenTemplate;
+        public Transform TokenContainer;
+        public TMP_Text CountText;
+        public GameObject TokenVisualObject;
         public TMP_Text EntryProgressText;
         public TMP_Text TargetEquationText;
         public TMP_Text CurrentValuesText;
@@ -757,6 +1723,11 @@ public static class CodebreakerTutorialUIPass
         public TMP_Text PuzzleInstructionText;
         public TMP_Text PuzzleFeedbackText;
         public GameObject EquationPlusText;
+        public GameObject EquationReadyText;
+        public GameObject BufferFeedbackText;
+        public GameObject BufferCapacitySlotsRoot;
+        public GameObject BufferSlotVisual01;
+        public GameObject BufferSlotVisual02;
         public GameObject EquationALabelText;
         public GameObject EquationBLabelText;
     }

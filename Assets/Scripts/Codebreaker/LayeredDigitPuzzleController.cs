@@ -8,9 +8,8 @@ public class LayeredDigitPuzzleController : MonoBehaviour
     private const string ConfigurationErrorText =
         "LAYERED PUZZLE CONFIGURATION ERROR";
     private const string InstructionText =
-        "CLICK A SEGMENT TO REMOVE ONE LAYER\n" +
-        "USE ALL 4 HITS - LEAVE ONE VALID GREEN DIGIT\n" +
-        "RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT";
+        "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
+        "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
     private const float NoDelayedAction = -1f;
 
     [SerializeField] private LayeredDigitPuzzleConfig[] puzzleConfigs =

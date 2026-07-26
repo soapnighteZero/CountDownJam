@@ -123,6 +123,8 @@ public class CodebreakerEquationEntryController : MonoBehaviour
         displayB.SetDigit(startingDigitB);
         sharedInventory.SetCapacity(trayCapacity);
         sharedInventory.SetCount(0);
+        equationHUD.ClearBufferFeedback();
+        equationHUD.SetEquationReady(false);
         RefreshHud();
 
         if (!ValidateSegmentConservation(out string errorMessage))
@@ -166,6 +168,8 @@ public class CodebreakerEquationEntryController : MonoBehaviour
             equationHUD.SetEntryProgress(0, totalDigits);
             equationHUD.SetAcceptedDigits(acceptedDigits, totalDigits);
             equationHUD.ClearFeedback();
+            equationHUD.SetEquationReady(false);
+            equationHUD.ClearBufferFeedback();
         }
     }
 
@@ -187,6 +191,7 @@ public class CodebreakerEquationEntryController : MonoBehaviour
 
         if (!validA || !validB)
         {
+            equationHUD.SetEquationReady(false);
             equationHUD.SetFeedback("INVALID DISPLAY SHAPE");
             RefreshCurrentValues(validA, valueA, validB, valueB);
             return false;
@@ -199,6 +204,7 @@ public class CodebreakerEquationEntryController : MonoBehaviour
             valueB,
             CurrentTargetDigit))
         {
+            equationHUD.SetEquationReady(false);
             equationHUD.SetFeedback(
                 $"WRONG TOTAL: {total}\nTARGET: {CurrentTargetDigit}");
             RefreshCurrentValues(true, valueA, true, valueB);
@@ -399,6 +405,7 @@ public class CodebreakerEquationEntryController : MonoBehaviour
 
     private void AcceptCurrentDigit(int valueA, int valueB)
     {
+        equationHUD.SetEquationReady(false);
         int acceptedIndex = CurrentEntryIndex;
         int acceptedTarget = CurrentTargetDigit;
         acceptedDigits.Add(acceptedTarget);
@@ -557,16 +564,12 @@ public class CodebreakerEquationEntryController : MonoBehaviour
 
         if (!IsTransitioning && !IsComplete)
         {
-            if (validA &&
+            bool isReady =
+                validA &&
                 validB &&
-                valueA + valueB == CurrentTargetDigit)
-            {
-                equationHUD.SetFeedback("READY - PRESS SPACE");
-            }
-            else
-            {
-                equationHUD.ClearFeedback();
-            }
+                valueA + valueB == CurrentTargetDigit;
+            equationHUD.SetEquationReady(isReady);
+            equationHUD.ClearFeedback();
         }
     }
 
@@ -586,6 +589,8 @@ public class CodebreakerEquationEntryController : MonoBehaviour
 
     private void HandleBoardChanged()
     {
+        equationHUD?.ClearBufferFeedback();
+
         if (IsEntryActive && !IsTransitioning && !IsComplete)
         {
             RefreshHud();
@@ -600,8 +605,8 @@ public class CodebreakerEquationEntryController : MonoBehaviour
             gameController != null &&
             !gameController.IsTerminalState)
         {
-            equationHUD?.SetFeedback(
-                "TRAY FULL\nREMOVE THE STORED SEGMENT FIRST");
+            equationHUD?.SetBufferFeedback(
+                "BUFFER FULL - MOVE A SEGMENT OUT FIRST");
         }
     }
 
@@ -620,6 +625,8 @@ public class CodebreakerEquationEntryController : MonoBehaviour
                 CancelAdvance();
                 IsEntryActive = false;
                 IsTransitioning = false;
+                equationHUD?.SetEquationReady(false);
+                equationHUD?.ClearBufferFeedback();
 
                 if (interactionController != null)
                 {
@@ -640,6 +647,7 @@ public class CodebreakerEquationEntryController : MonoBehaviour
     private void HandleConservationFailure(string errorMessage)
     {
         interactionController.SetInteractionEnabled(false);
+        equationHUD.SetEquationReady(false);
         equationHUD.SetFeedback(ConservationError);
         Debug.LogError(errorMessage, this);
     }
@@ -650,6 +658,8 @@ public class CodebreakerEquationEntryController : MonoBehaviour
 
         if (equationHUD != null)
         {
+            equationHUD.SetEquationReady(false);
+            equationHUD.ClearBufferFeedback();
             equationHUD.SetFeedback(ConfigurationError);
         }
 

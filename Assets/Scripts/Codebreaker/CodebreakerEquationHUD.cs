@@ -15,10 +15,33 @@ public class CodebreakerEquationHUD : MonoBehaviour
     [SerializeField] private TMP_Text acceptedDigitsText;
     [SerializeField] private TMP_Text feedbackText;
     [SerializeField] private TMP_Text instructionText;
+    [SerializeField] private TMP_Text equationOperatorText;
+    [SerializeField] private TMP_Text equationReadyText;
+    [SerializeField] private TMP_Text bufferFeedbackText;
+    [SerializeField] private Color equationReadyColor =
+        new Color(0.45f, 1f, 0.62f, 1f);
+
+    private Color normalTargetEquationColor;
+    private Color normalEquationOperatorColor;
+    private bool normalColorsCaptured;
 
     private void Awake()
     {
         ConfigureTextObjects();
+
+        if (targetEquationText != null)
+        {
+            normalTargetEquationColor = targetEquationText.color;
+        }
+
+        if (equationOperatorText != null)
+        {
+            normalEquationOperatorColor = equationOperatorText.color;
+        }
+
+        normalColorsCaptured =
+            targetEquationText != null &&
+            equationOperatorText != null;
     }
 
     public void SetEntryProgress(int currentIndex, int totalDigits)
@@ -99,6 +122,54 @@ public class CodebreakerEquationHUD : MonoBehaviour
         SetFeedback(string.Empty);
     }
 
+    public void SetEquationReady(bool ready)
+    {
+        if (targetEquationText != null &&
+            (ready || normalColorsCaptured))
+        {
+            targetEquationText.color =
+                ready
+                    ? equationReadyColor
+                    : normalTargetEquationColor;
+        }
+
+        if (equationOperatorText != null &&
+            (ready || normalColorsCaptured))
+        {
+            equationOperatorText.color =
+                ready
+                    ? equationReadyColor
+                    : normalEquationOperatorColor;
+        }
+
+        if (equationReadyText == null)
+        {
+            return;
+        }
+
+        equationReadyText.text =
+            ready ? "VALID - PRESS SPACE" : string.Empty;
+        equationReadyText.gameObject.SetActive(ready);
+    }
+
+    public void SetBufferFeedback(string message)
+    {
+        if (bufferFeedbackText == null)
+        {
+            return;
+        }
+
+        string safeMessage = message ?? string.Empty;
+        bufferFeedbackText.text = safeMessage;
+        bufferFeedbackText.gameObject.SetActive(
+            safeMessage.Length > 0);
+    }
+
+    public void ClearBufferFeedback()
+    {
+        SetBufferFeedback(string.Empty);
+    }
+
     public bool ValidateReferences()
     {
         bool isValid = true;
@@ -108,6 +179,15 @@ public class CodebreakerEquationHUD : MonoBehaviour
         isValid &= ValidateText(acceptedDigitsText, nameof(acceptedDigitsText));
         isValid &= ValidateText(feedbackText, nameof(feedbackText));
         isValid &= ValidateText(instructionText, nameof(instructionText));
+        isValid &= ValidateText(
+            equationOperatorText,
+            nameof(equationOperatorText));
+        isValid &= ValidateText(
+            equationReadyText,
+            nameof(equationReadyText));
+        isValid &= ValidateText(
+            bufferFeedbackText,
+            nameof(bufferFeedbackText));
         ConfigureTextObjects();
         return isValid;
     }
@@ -121,7 +201,10 @@ public class CodebreakerEquationHUD : MonoBehaviour
             currentValuesText,
             acceptedDigitsText,
             feedbackText,
-            instructionText
+            instructionText,
+            equationOperatorText,
+            equationReadyText,
+            bufferFeedbackText
         };
 
         for (int i = 0; i < textObjects.Length; i++)
