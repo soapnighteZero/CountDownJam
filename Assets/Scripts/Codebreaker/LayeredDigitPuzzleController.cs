@@ -8,8 +8,11 @@ public class LayeredDigitPuzzleController : MonoBehaviour
     private const string ConfigurationErrorText =
         "LAYERED PUZZLE CONFIGURATION ERROR";
     private const string InstructionText =
-        "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
-        "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
+        "<size=24><b>OBJECTIVE</b></size>\n" +
+        "<size=21><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n\n" +
+        "<size=18>CLICK A SEGMENT TO REMOVE ONE LAYER</size>\n" +
+        "<size=18>RED > YELLOW > GREEN > OFF</size>\n" +
+        "<size=18>DOTS SHOW LAYERS LEFT</size>";
     private const float NoDelayedAction = -1f;
 
     [SerializeField] private LayeredDigitPuzzleConfig[] puzzleConfigs =
@@ -832,7 +835,7 @@ public class LayeredDigitPuzzleController : MonoBehaviour
         }
 
         puzzleProgressText.text =
-            $"DIGIT {ActivePuzzleIndex + 1} OF " +
+            $"DIGIT {ActivePuzzleIndex + 1} / " +
             $"{gameController.LevelConfig.CodeDigitCount}";
     }
 

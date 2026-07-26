@@ -46,6 +46,7 @@ public static class CodebreakerTutorialUIPass
         "ReleaseMenuCanvas";
     private const string ReleaseMenuSuccessReport =
         "CODEBREAKER RELEASE MENUS BUILT\n\n" +
+        "Game title hierarchy corrected\n" +
         "Main menu: PLAY / QUIT\n" +
         "Pause menu: RESUME / RETRY / QUIT\n" +
         "Escape toggle: enabled\n" +
@@ -54,8 +55,11 @@ public static class CodebreakerTutorialUIPass
     private const string EquationStatusPanelName =
         "EquationStatusPanel";
     private const string PhaseOneInstruction =
-        "<size=30><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n" +
-        "<size=18>CLICK A SEGMENT = REMOVE ONE LAYER   |   RED > YELLOW > GREEN > OFF   |   DOTS = LAYERS LEFT</size>";
+        "<size=24><b>OBJECTIVE</b></size>\n" +
+        "<size=21><b>USE ALL 4 HITS TO LEAVE ONE GREEN DIGIT</b></size>\n\n" +
+        "<size=18>CLICK A SEGMENT TO REMOVE ONE LAYER</size>\n" +
+        "<size=18>RED > YELLOW > GREEN > OFF</size>\n" +
+        "<size=18>DOTS SHOW LAYERS LEFT</size>";
     private const string PhaseTwoInstruction = "";
     private const string SuccessReport =
         "FINAL EQUATION ENTRY UI CLEANUP BUILT\n\n" +
@@ -171,7 +175,6 @@ public static class CodebreakerTutorialUIPass
             18f,
             FontStyles.Normal,
             OrdinaryFeedbackColor);
-
     [MenuItem(MenuPath)]
     private static void BuildTutorialUiPass()
     {
@@ -1377,6 +1380,20 @@ public static class CodebreakerTutorialUIPass
                 targetScene,
                 BombBackgroundObjectName,
                 errors),
+            GameController =
+                RequireUniqueComponent<CodebreakerGameController>(
+                    targetScene,
+                    errors),
+            GlobalTimer = RequireUniqueComponent<GlobalBombTimer>(
+                targetScene,
+                errors),
+            Hud = RequireUniqueComponent<CodebreakerHUD>(
+                targetScene,
+                errors),
+            CodeSequenceDisplay =
+                RequireUniqueComponent<CodeSequenceDisplay>(
+                    targetScene,
+                    errors),
             EquationHud = RequireUniqueComponent<CodebreakerEquationHUD>(
                 targetScene,
                 errors),
@@ -1391,7 +1408,11 @@ public static class CodebreakerTutorialUIPass
             InventoryDropZone =
                 RequireUniqueComponent<InventoryDropZone>(
                     targetScene,
-                    errors)
+                    errors),
+            ReleaseCanvas = FindOptionalUniqueNamed(
+                targetScene,
+                ReleaseMenuCanvasName,
+                errors)
         };
 
         RequireComponent<Canvas>(
@@ -1504,6 +1525,11 @@ public static class CodebreakerTutorialUIPass
 
         if (context.PuzzleController != null)
         {
+            context.SerializedPuzzleGameController =
+                ReadObjectReference<CodebreakerGameController>(
+                    context.PuzzleController,
+                    "gameController",
+                    errors);
             context.PuzzleProgressText = ReadTextReference(
                 context.PuzzleController,
                 "puzzleProgressText",
@@ -1521,6 +1547,51 @@ public static class CodebreakerTutorialUIPass
                 "puzzleFeedbackText",
                 errors);
         }
+
+        if (context.GameController != null)
+        {
+            context.LevelConfig =
+                ReadObjectReference<CodebreakerLevelConfig>(
+                    context.GameController,
+                    "levelConfig",
+                    errors);
+            context.SerializedGlobalTimer =
+                ReadObjectReference<GlobalBombTimer>(
+                    context.GameController,
+                    "globalTimer",
+                    errors);
+            context.SerializedCodeSequenceDisplay =
+                ReadObjectReference<CodeSequenceDisplay>(
+                    context.GameController,
+                    "codeSequenceDisplay",
+                    errors);
+            context.SerializedHud =
+                ReadObjectReference<CodebreakerHUD>(
+                    context.GameController,
+                    "hud",
+                    errors);
+            context.CodeDiscoveryRoot =
+                ReadObjectReference<GameObject>(
+                    context.GameController,
+                    "codeDiscoveryRoot",
+                    errors);
+            context.SerializedEquationEntryRoot =
+                ReadObjectReference<GameObject>(
+                    context.GameController,
+                    "equationEntryRoot",
+                    errors);
+        }
+
+        if (context.SerializedPuzzleGameController != null &&
+            context.SerializedPuzzleGameController !=
+                context.GameController)
+        {
+            errors.Add(
+                "LayeredDigitPuzzleController.gameController must " +
+                "reference the unique CodebreakerGameController.");
+        }
+
+        ValidateGameplayControllerReferences(context, errors);
 
         if (context.InventoryTray != null)
         {
@@ -1859,14 +1930,54 @@ public static class CodebreakerTutorialUIPass
                         "instructionText"),
                     new PreservedHierarchyState(
                         context.BufferFeedbackText,
-                        BufferFeedbackLayout.Name),
-                    new PreservedHierarchyState(
-                        context.PuzzleInstructionText.gameObject,
-                        "puzzleInstructionText")
+                        BufferFeedbackLayout.Name)
                 };
             context.PuzzleControllerState =
                 new PreservedGameObjectState(
                     context.PuzzleController.gameObject);
+            context.GameControllerState =
+                new PreservedGameObjectState(
+                    context.GameController.gameObject);
+            context.HudControllerState =
+                new PreservedGameObjectState(
+                    context.Hud.gameObject);
+            context.GlobalTimerState =
+                new PreservedGameObjectState(
+                    context.GlobalTimer.gameObject);
+            context.CodeSequenceControllerState =
+                new PreservedGameObjectState(
+                    context.CodeSequenceDisplay.gameObject);
+            context.GlobalHudStates =
+                new[]
+                {
+                    new PreservedHierarchyState(
+                        context.TimerText.gameObject,
+                        "countdown text"),
+                    new PreservedHierarchyState(
+                        context.PhaseText.gameObject,
+                        "phase title"),
+                    new PreservedHierarchyState(
+                        context.StatusText.gameObject,
+                        "discovery status text"),
+                    new PreservedHierarchyState(
+                        context.ResultText.gameObject,
+                        "result text"),
+                    new PreservedHierarchyState(
+                        context.DebugHelpText.gameObject,
+                        "debug help text"),
+                    new PreservedHierarchyState(
+                        context.CodeSequenceDisplay.gameObject,
+                        "recovered-code display")
+                };
+
+            if (context.ReleaseCanvas != null)
+            {
+                context.ReleaseMenuState =
+                    new PreservedHierarchyState(
+                        context.ReleaseCanvas,
+                        ReleaseMenuCanvasName);
+            }
+
         }
 
         return context;
@@ -1983,19 +2094,10 @@ public static class CodebreakerTutorialUIPass
             context.EquationInstructionText.gameObject,
             false);
 
-        ConfigureText(
-            context.PuzzleInstructionText.GetComponent<RectTransform>(),
-            context.PuzzleInstructionText,
-            new Vector2(0f, -405f),
-            new Vector2(1400f, 110f),
-            22f,
-            HorizontalAlignmentOptions.Center,
-            setVerticalMiddle: true,
-            content: PhaseOneInstruction,
-            setOverflow: true);
-        ConfigureAsNonInteractive(context.PuzzleProgressText);
-        ConfigureAsNonInteractive(context.HitsLeftText);
-        ConfigureAsNonInteractive(context.PuzzleFeedbackText);
+        Undo.RecordObject(context.PuzzleProgressText, UndoName);
+        context.PuzzleProgressText.text = "DIGIT 1 / 5";
+        Undo.RecordObject(context.PuzzleInstructionText, UndoName);
+        context.PuzzleInstructionText.text = PhaseOneInstruction;
 
         ConfigureTrayLayout(context.InventoryTray);
         ConfigureCountText(context.CountText);
@@ -2734,18 +2836,6 @@ public static class CodebreakerTutorialUIPass
             PhaseTwoInstruction,
             expectedActive: false,
             errors);
-        ValidateTextLayout(
-            context.PuzzleInstructionText,
-            new StaticLabelLayout(
-                context.PuzzleInstructionText.gameObject.name,
-                PhaseOneInstruction,
-                new Vector2(0f, -405f),
-                new Vector2(1400f, 110f),
-                22f),
-            PhaseOneInstruction,
-            context.PuzzleInstructionText.gameObject.activeSelf,
-            errors);
-
         ValidateSupportTextLayout(
             context.EntryProgressText,
             EntryProgressLayout,
@@ -2856,12 +2946,69 @@ public static class CodebreakerTutorialUIPass
         context.PuzzleControllerState.Validate(
             "Gameplay controller",
             errors);
+        context.GameControllerState.Validate(
+            "Codebreaker gameplay controller",
+            errors);
+        context.HudControllerState.Validate(
+            "Codebreaker HUD controller",
+            errors);
+        context.GlobalTimerState.Validate(
+            "global timer",
+            errors);
+        context.CodeSequenceControllerState.Validate(
+            "recovered-code controller",
+            errors);
+
+        foreach (PreservedHierarchyState state in
+            context.GlobalHudStates)
+        {
+            state.Validate(errors);
+        }
+
+        if (context.ReleaseMenuState != null)
+        {
+            context.ReleaseMenuState.Validate(errors);
+        }
 
         if (errors.Count > 0)
         {
             throw new InvalidOperationException(
                 "Post-build validation failed:\n- " +
                 string.Join("\n- ", errors));
+        }
+    }
+
+    private static void ValidateObjectReferenceArray<T>(
+        Object owner,
+        string propertyName,
+        T[] expectedReferences,
+        List<string> errors)
+        where T : Object
+    {
+        SerializedObject serializedObject = new SerializedObject(owner);
+        serializedObject.Update();
+        SerializedProperty property =
+            serializedObject.FindProperty(propertyName);
+
+        if (property == null ||
+            !property.isArray ||
+            property.arraySize != expectedReferences.Length)
+        {
+            errors.Add(
+                $"{owner.GetType().Name}.{propertyName} array structure " +
+                "changed.");
+            return;
+        }
+
+        for (int i = 0; i < expectedReferences.Length; i++)
+        {
+            if (property.GetArrayElementAtIndex(i)
+                    .objectReferenceValue != expectedReferences[i])
+            {
+                errors.Add(
+                    $"{owner.GetType().Name}.{propertyName}[{i}] " +
+                    "reference changed.");
+            }
         }
     }
 
@@ -3476,6 +3623,126 @@ public static class CodebreakerTutorialUIPass
         }
 
         return reference;
+    }
+
+    private static void ValidateGameplayControllerReferences(
+        TutorialContext context,
+        List<string> errors)
+    {
+        if (context.SerializedGlobalTimer != null &&
+            context.SerializedGlobalTimer != context.GlobalTimer)
+        {
+            errors.Add(
+                "CodebreakerGameController.globalTimer must reference " +
+                "the unique GlobalBombTimer.");
+        }
+
+        if (context.SerializedCodeSequenceDisplay != null &&
+            context.SerializedCodeSequenceDisplay !=
+                context.CodeSequenceDisplay)
+        {
+            errors.Add(
+                "CodebreakerGameController.codeSequenceDisplay must " +
+                "reference the unique CodeSequenceDisplay.");
+        }
+
+        if (context.SerializedHud != null &&
+            context.SerializedHud != context.Hud)
+        {
+            errors.Add(
+                "CodebreakerGameController.hud must reference the unique " +
+                "CodebreakerHUD.");
+        }
+
+        if (context.SerializedEquationEntryRoot != null &&
+            context.SerializedEquationEntryRoot != context.EquationRoot)
+        {
+            errors.Add(
+                "CodebreakerGameController.equationEntryRoot must " +
+                "reference EquationEntryRoot.");
+        }
+
+        if (context.LevelConfig != null &&
+            !context.LevelConfig.ValidateConfiguration(
+                out string levelConfigError))
+        {
+            errors.Add(
+                "CodebreakerGameController.levelConfig is invalid: " +
+                levelConfigError);
+        }
+
+        if (context.Hud != null)
+        {
+            context.TimerText = ReadTextReference(
+                context.Hud,
+                "timerText",
+                errors);
+            context.PhaseText = ReadTextReference(
+                context.Hud,
+                "phaseText",
+                errors);
+            context.StatusText = ReadTextReference(
+                context.Hud,
+                "statusText",
+                errors);
+            context.ResultText = ReadTextReference(
+                context.Hud,
+                "resultText",
+                errors);
+            context.DebugHelpText = ReadTextReference(
+                context.Hud,
+                "debugHelpText",
+                errors);
+            context.HudCodeSequenceDisplay =
+                ReadObjectReference<CodeSequenceDisplay>(
+                    context.Hud,
+                    "codeSequenceDisplay",
+                    errors);
+        }
+
+        if (context.CodeSequenceDisplay != null)
+        {
+            context.CodeSequenceText = ReadTextReference(
+                context.CodeSequenceDisplay,
+                "displayText",
+                errors);
+        }
+
+        if (context.HudCodeSequenceDisplay != null &&
+            context.HudCodeSequenceDisplay !=
+                context.CodeSequenceDisplay)
+        {
+            errors.Add(
+                "CodebreakerHUD.codeSequenceDisplay must reference the " +
+                "unique CodeSequenceDisplay.");
+        }
+
+        TMP_Text[] globalHudTexts =
+        {
+            context.TimerText,
+            context.PhaseText,
+            context.StatusText,
+            context.ResultText,
+            context.DebugHelpText,
+            context.CodeSequenceText
+        };
+
+        foreach (TMP_Text text in globalHudTexts)
+        {
+            if (text != null)
+            {
+                ValidateDescendant(
+                    text.gameObject,
+                    context.HudCanvas,
+                    text.gameObject.name,
+                    "CodebreakerHUDCanvas",
+                    errors);
+                ValidateTextRect(
+                    text,
+                    text.gameObject.name,
+                    errors);
+            }
+        }
     }
 
     private static void ValidateTextRect(
@@ -4574,23 +4841,23 @@ public static class CodebreakerTutorialUIPass
             true,
             false,
             Vector2.zero,
-            new Vector2(720f, 580f));
+            new Vector2(840f, 600f));
 
         TMP_Text mainTitle = CreateOrRepairReleaseText(
             context,
             "MainTitleText",
             mainPanel.transform,
-            "COUNT DOWN",
+            "CODEBREAKER PROTOCOL",
             new Vector2(0f, 190f),
-            new Vector2(620f, 100f),
-            72f,
+            new Vector2(760f, 100f),
+            58f,
             FontStyles.Bold,
             new Color(1f, 0.78f, 0.20f, 1f));
         TMP_Text mainSubtitle = CreateOrRepairReleaseText(
             context,
             "MainSubtitleText",
             mainPanel.transform,
-            "CODEBREAKER PROTOCOL",
+            "COUNT DOWN",
             new Vector2(0f, 105f),
             new Vector2(620f, 54f),
             30f,
@@ -4601,8 +4868,8 @@ public static class CodebreakerTutorialUIPass
             "MainTaglineText",
             mainPanel.transform,
             "RECOVER THE CODE. DEFUSE THE DEVICE.",
-            new Vector2(0f, 52f),
-            new Vector2(620f, 38f),
+            new Vector2(0f, 50f),
+            new Vector2(700f, 38f),
             18f,
             FontStyles.Normal,
             new Color(0.65f, 0.76f, 0.82f, 1f));
@@ -5655,22 +5922,22 @@ public static class CodebreakerTutorialUIPass
             true,
             false,
             Vector2.zero,
-            new Vector2(720f, 580f),
+            new Vector2(840f, 600f),
             errors);
         ValidateReleaseText(
             context,
             "MainTitleText",
-            "COUNT DOWN",
+            "CODEBREAKER PROTOCOL",
             new Vector2(0f, 190f),
-            new Vector2(620f, 100f),
-            72f,
+            new Vector2(760f, 100f),
+            58f,
             FontStyles.Bold,
             new Color(1f, 0.78f, 0.20f, 1f),
             errors);
         ValidateReleaseText(
             context,
             "MainSubtitleText",
-            "CODEBREAKER PROTOCOL",
+            "COUNT DOWN",
             new Vector2(0f, 105f),
             new Vector2(620f, 54f),
             30f,
@@ -5681,8 +5948,8 @@ public static class CodebreakerTutorialUIPass
             context,
             "MainTaglineText",
             "RECOVER THE CODE. DEFUSE THE DEVICE.",
-            new Vector2(0f, 52f),
-            new Vector2(620f, 38f),
+            new Vector2(0f, 50f),
+            new Vector2(700f, 38f),
             18f,
             FontStyles.Normal,
             new Color(0.65f, 0.76f, 0.82f, 1f),
@@ -5979,9 +6246,11 @@ public static class CodebreakerTutorialUIPass
             text.text != expectedContent ||
             text.font != context.FontAsset ||
             text.fontSharedMaterial != context.FontMaterial ||
-            text.fontSize != expectedFontSize ||
+            !Mathf.Approximately(
+                text.fontSize,
+                expectedFontSize) ||
             text.fontStyle != expectedFontStyle ||
-            text.color != expectedColor ||
+            !ApproximatelyColor(text.color, expectedColor) ||
             text.alignment != TextAlignmentOptions.Center ||
             text.raycastTarget)
         {
@@ -6545,15 +6814,34 @@ public static class CodebreakerTutorialUIPass
     {
         public Scene TargetScene;
         public GameObject HudCanvas;
+        public CodebreakerGameController GameController;
+        public CodebreakerGameController SerializedPuzzleGameController;
+        public GlobalBombTimer GlobalTimer;
+        public GlobalBombTimer SerializedGlobalTimer;
+        public CodebreakerHUD Hud;
+        public CodebreakerHUD SerializedHud;
+        public CodeSequenceDisplay CodeSequenceDisplay;
+        public CodeSequenceDisplay SerializedCodeSequenceDisplay;
+        public CodeSequenceDisplay HudCodeSequenceDisplay;
+        public CodebreakerLevelConfig LevelConfig;
+        public GameObject CodeDiscoveryRoot;
+        public GameObject SerializedEquationEntryRoot;
         public GameObject EquationRoot;
         public GameObject DisplayA;
         public GameObject DisplayB;
         public GameObject BombBackground;
+        public GameObject ReleaseCanvas;
         public PreservedHierarchyState BombBackgroundState;
+        public PreservedHierarchyState ReleaseMenuState;
         public PreservedHierarchyState[] CentralEquationStates;
         public PreservedHierarchyState BufferPresentationState;
         public PreservedHierarchyState[] SupportUiStates;
         public PreservedGameObjectState PuzzleControllerState;
+        public PreservedGameObjectState GameControllerState;
+        public PreservedGameObjectState HudControllerState;
+        public PreservedGameObjectState GlobalTimerState;
+        public PreservedGameObjectState CodeSequenceControllerState;
+        public PreservedHierarchyState[] GlobalHudStates;
         public CodebreakerEquationHUD EquationHud;
         public LayeredDigitPuzzleController PuzzleController;
         public SegmentInventoryTray InventoryTray;
@@ -6593,6 +6881,12 @@ public static class CodebreakerTutorialUIPass
         public TMP_Text HitsLeftText;
         public TMP_Text PuzzleInstructionText;
         public TMP_Text PuzzleFeedbackText;
+        public TMP_Text TimerText;
+        public TMP_Text PhaseText;
+        public TMP_Text StatusText;
+        public TMP_Text ResultText;
+        public TMP_Text DebugHelpText;
+        public TMP_Text CodeSequenceText;
         public GameObject EquationPlusText;
         public GameObject EquationReadyText;
         public GameObject BufferFeedbackText;
